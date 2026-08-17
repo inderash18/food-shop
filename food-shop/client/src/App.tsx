@@ -13,6 +13,7 @@ import { OrderConfirmationPage } from './pages/student/OrderConfirmationPage';
 import { OrdersPage } from './pages/student/OrdersPage';
 import { ProfilePage } from './pages/student/ProfilePage';
 import { NotificationsPage } from './pages/student/NotificationsPage';
+import { MockPaymentPage } from './pages/student/MockPaymentPage';
 
 // Auth Pages
 import { LoginPage } from './pages/auth/LoginPage';
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="orders" element={<OrdersPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="mock-payment/:paymentId" element={<MockPaymentPage />} />
       </Route>
 
       {/* Admin App Routes */}

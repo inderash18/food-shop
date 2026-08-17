@@ -135,19 +135,21 @@ export function PaymentPage() {
           
           {/* Main QR Section */}
           <div className="p-8 flex flex-col items-center space-y-6">
-            <div className="bg-gray-50 p-4 rounded-3xl border border-gray-100 relative">
-              <QRCodeSVG 
-                value={upiIntentUri} 
-                size={220} 
-                level="Q"
-                includeMargin={true}
-                className="rounded-2xl"
-              />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-100">
-                  <QrCode className="h-6 w-6 text-primary-600" />
+            <div className="bg-gray-50 p-4 rounded-3xl border border-gray-100 relative group cursor-pointer transition-transform hover:scale-105">
+              <a href={upiIntentUri} target="_blank" rel="noopener noreferrer" className="block relative">
+                <QRCodeSVG 
+                  value={upiIntentUri} 
+                  size={220} 
+                  level="Q"
+                  includeMargin={true}
+                  className="rounded-2xl"
+                />
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-100">
+                    <QrCode className="h-6 w-6 text-primary-600" />
+                  </div>
                 </div>
-              </div>
+              </a>
             </div>
             
             <div className="text-center space-y-1 w-full">

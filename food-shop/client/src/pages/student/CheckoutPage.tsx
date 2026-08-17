@@ -56,6 +56,8 @@ export function CheckoutPage() {
         sessionStorage.setItem('paytmEnvironment', data.checkout.paymentIntent.metadata?.environment || '');
         sessionStorage.setItem('paytmUpiId', data.checkout.paymentIntent.metadata?.upiId || '');
         sessionStorage.setItem('paytmUpiIntentUri', data.checkout.paymentIntent.metadata?.upiIntentUri || '');
+      } else if (data.checkout.paymentIntent.provider === 'mock') {
+        sessionStorage.setItem('paytmUpiIntentUri', `${window.location.origin}/mock-payment/${data.checkout.paymentIntent.paymentId}`);
       }
 
       navigate('/payment', { replace: true });
