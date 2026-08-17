@@ -243,7 +243,7 @@ export function InventoryManagementPage() {
       {/* Adjust Stock Modal */}
       {adjustingItem && (
         <Modal
-          isOpen={Boolean(adjustingItem)}
+          open={Boolean(adjustingItem)}
           onClose={() => setAdjustingItem(null)}
           title={`Adjust Stock — ${adjustingItem.name}`}
         >

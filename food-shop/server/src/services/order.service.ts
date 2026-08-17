@@ -66,6 +66,8 @@ async function readSettings() {
       orderOpenTime: undefined as string | undefined,
       orderCloseTime: undefined as string | undefined,
       orderCutoffMinutesBeforeClose: 0,
+      merchantUpiId: undefined as string | undefined,
+      merchantName: undefined as string | undefined,
     };
   }
   return settings;

@@ -40,7 +40,7 @@ export interface PaymentProvider {
     clientSecret?: string;
     metadata?: Record<string, unknown>;
   }>;
-  verifyPayment(providerPaymentId: string): Promise<{ status: PaymentStatus; verified: boolean }>;
+  verifyPayment(providerPaymentId: string): Promise<{ status: PaymentStatus; verified: boolean; amount?: number; currency?: string; merchantAccountId?: string; transactionId?: string; }>;
   parseWebhook(rawBody: string, headers: Record<string, string>): Promise<WebhookPayload>;
   refundPayment(providerPaymentId: string): Promise<void>;
   getPaymentStatus(providerPaymentId: string): Promise<PaymentStatus>;
@@ -86,44 +86,126 @@ class PaymentGatewayService {
     return this.toIntent(payment, created.clientSecret);
   }
 
-  /**
-   * Verify a payment with the provider. Only confirms the order when the
-   * provider reports success (source of truth, not the frontend).
-   */
-  async verifyPayment(paymentId: string): Promise<{ payment: IPayment; order: IOrder }> {
+  async verifyPayment(paymentId: string, studentId: string): Promise<{ payment: IPayment; order: IOrder }> {
     const payment = await Payment.findById(paymentId);
     if (!payment) throw new NotFoundError('Payment not found');
+    if (String(payment.userId) !== studentId) throw new AppError(403, 'FORBIDDEN', 'Payment does not belong to you');
 
-    if (payment.status === PAYMENT_STATUS.SUCCESS) {
-      const order = await Order.findById(payment.orderId);
-      if (!order) throw new NotFoundError('Order not found');
-      return { payment, order };
-    }
-
-    const provider = this.getProvider(payment.provider);
-    const result = await provider.verifyPayment(payment.providerPaymentId);
-
-    if (result.status === PAYMENT_STATUS.SUCCESS) {
-      payment.status = PAYMENT_STATUS.SUCCESS;
-      payment.verifiedAt = new Date();
-      await payment.save();
-
-      const { confirmOrder } = await import('./order.service');
-      const order = await confirmOrder(String(payment.orderId));
-      return { payment, order };
-    }
-
-    if (result.status === PAYMENT_STATUS.PENDING) {
+    if (payment.status === PAYMENT_STATUS.SUCCESS && payment.verificationStatus === 'VERIFIED') {
       const order = await Order.findById(payment.orderId);
       if (!order) throw new NotFoundError('Order not found');
       return { payment, order };
     }
 
     const order = await Order.findById(payment.orderId);
-    throw new PaymentError(
-      'Payment failed',
-      'PAYMENT_FAILED'
-    );
+    if (!order) throw new NotFoundError('Order not found');
+
+    const provider = this.getProvider(payment.provider);
+    
+    payment.verificationStatus = 'VERIFYING';
+    await payment.save();
+
+    let result;
+    try {
+      result = await provider.verifyPayment(payment.providerPaymentId);
+    } catch (error) {
+      payment.verificationStatus = 'NOT_VERIFIED';
+      await payment.save();
+      throw error;
+    }
+
+    if (result.status === PAYMENT_STATUS.SUCCESS) {
+      // 1. Verify transaction ID uniqueness
+      if (result.transactionId) {
+        const { PaymentTransaction } = await import('../models');
+        const existingTx = await PaymentTransaction.findOne({ provider: provider.name, transactionId: result.transactionId });
+        if (existingTx && String(existingTx.paymentId) !== String(payment._id)) {
+          payment.status = PAYMENT_STATUS.FAILED;
+          payment.verificationStatus = 'REJECTED';
+          payment.failureReason = 'DUPLICATE_TRANSACTION';
+          await payment.save();
+          throw new PaymentError('Transaction has already been processed', 'INVALID_PAYMENT');
+        }
+      }
+
+      // 2. Verify Amount
+      if (result.amount !== undefined && result.amount !== payment.amount) {
+        payment.status = PAYMENT_STATUS.FAILED;
+        payment.verificationStatus = 'REJECTED';
+        payment.failureReason = 'AMOUNT_MISMATCH';
+        await payment.save();
+        throw new PaymentError(`Amount mismatch: expected ${payment.amount}, got ${result.amount}`, 'INVALID_PAYMENT');
+      }
+
+      // 3. Verify Currency
+      if (result.currency && result.currency !== payment.currency) {
+        payment.status = PAYMENT_STATUS.FAILED;
+        payment.verificationStatus = 'REJECTED';
+        payment.failureReason = 'CURRENCY_MISMATCH';
+        await payment.save();
+        throw new PaymentError('Currency mismatch', 'INVALID_PAYMENT');
+      }
+
+      // 4. Verify Merchant (if returned)
+      if (result.merchantAccountId && payment.merchantAccountId && result.merchantAccountId !== payment.merchantAccountId) {
+        payment.status = PAYMENT_STATUS.FAILED;
+        payment.verificationStatus = 'REJECTED';
+        payment.failureReason = 'MERCHANT_MISMATCH';
+        await payment.save();
+        
+        const { recordAudit } = await import('./audit.service');
+        await recordAudit({
+          actorId: studentId,
+          action: 'PAYMENT_FAILED',
+          resource: 'payment',
+          resourceId: String(payment._id),
+          metadata: { expected: payment.merchantAccountId, actual: result.merchantAccountId, reason: 'MERCHANT_MISMATCH' },
+        });
+        
+        throw new PaymentError('Merchant account mismatch', 'INVALID_PAYMENT');
+      }
+
+      // Save Transaction Record
+      if (result.transactionId) {
+        const { PaymentTransaction } = await import('../models');
+        await PaymentTransaction.create({
+          paymentId: payment._id,
+          orderId: order._id,
+          provider: provider.name,
+          transactionId: result.transactionId,
+          amount: result.amount ?? payment.amount,
+          currency: result.currency ?? payment.currency,
+          merchantAccountId: result.merchantAccountId ?? payment.merchantAccountId ?? 'unknown',
+          status: PAYMENT_STATUS.SUCCESS,
+          verifiedAt: new Date(),
+        });
+        payment.providerTransactionId = result.transactionId;
+      }
+
+      // Confirm Order atomically
+      payment.status = PAYMENT_STATUS.SUCCESS;
+      payment.verificationStatus = 'VERIFIED';
+      payment.verifiedAt = new Date();
+      await payment.save();
+
+      const { confirmOrder } = await import('./order.service');
+      const confirmedOrder = await confirmOrder(String(payment.orderId));
+      return { payment, order: confirmedOrder };
+    }
+
+    if (result.status === PAYMENT_STATUS.FAILED) {
+      payment.status = result.status;
+      payment.verificationStatus = 'REJECTED';
+      await payment.save();
+      const { failOrder } = await import('./order.service');
+      await failOrder(String(payment.orderId));
+      throw new PaymentError(`Payment ${result.status.toLowerCase()}`, 'PAYMENT_FAILED');
+    }
+
+    // Still pending
+    payment.verificationStatus = 'NOT_VERIFIED';
+    await payment.save();
+    return { payment, order };
   }
 
   /**
@@ -133,32 +215,55 @@ class PaymentGatewayService {
     const provider = this.getProvider(providerName);
     const payload = await provider.parseWebhook(rawBody, headers);
 
+    const { PaymentWebhookEvent } = await import('../models');
+    
+    // Idempotency Check
+    const existingEvent = await PaymentWebhookEvent.findOne({ provider: providerName, eventId: payload.event });
+    if (existingEvent) {
+      logger.info('Duplicate webhook event ignored', { eventId: payload.event });
+      return { handled: true, paymentId: existingEvent.transactionId };
+    }
+
+    const eventRecord = await PaymentWebhookEvent.create({
+      eventId: payload.event,
+      provider: providerName,
+      eventType: payload.event,
+      transactionId: payload.providerPaymentId,
+      rawPayload: rawBody,
+    });
+
     const payment = await Payment.findOne({ providerPaymentId: payload.providerPaymentId });
     if (!payment) {
       logger.warn('Webhook for unknown payment ignored', { providerPaymentId: payload.providerPaymentId });
       return { handled: false };
     }
 
-    if (payload.event === 'payment.captured' || payload.event === 'payment.success') {
-      if (payment.status === PAYMENT_STATUS.SUCCESS) {
+    // Rather than confirming it straight away, we trigger verifyPayment to run the full strict verification
+    // But since verifyPayment requires the studentId to log the mismatch (or we pass it a system identifier),
+    // we can just call it with a 'system' actor or bypass the user check.
+    // Let's abstract the core of verifyPayment into a private method or just call it:
+    try {
+      if (payload.event === 'payment.captured' || payload.event === 'payment.success') {
+        const { payment: verifiedPayment } = await this.verifyPayment(String(payment._id), String(payment.userId));
+        eventRecord.processed = true;
+        eventRecord.processedAt = new Date();
+        await eventRecord.save();
+        return { handled: true, paymentId: String(verifiedPayment._id) };
+      }
+
+      if (payload.event === 'payment.failed') {
+        payment.status = PAYMENT_STATUS.FAILED;
+        payment.verificationStatus = 'REJECTED';
+        await payment.save();
+        const { failOrder } = await import('./order.service');
+        await failOrder(String(payment.orderId));
+        eventRecord.processed = true;
+        eventRecord.processedAt = new Date();
+        await eventRecord.save();
         return { handled: true, paymentId: String(payment._id) };
       }
-      payment.status = PAYMENT_STATUS.SUCCESS;
-      payment.verifiedAt = new Date();
-      await payment.save();
-
-      const { confirmOrder } = await import('./order.service');
-      const order = await confirmOrder(String(payment.orderId));
-      logger.info('Webhook confirmed order', { orderNumber: order.orderNumber, paymentId: String(payment._id) });
-      return { handled: true, paymentId: String(payment._id) };
-    }
-
-    if (payload.event === 'payment.failed') {
-      const { failOrder } = await import('./order.service');
-      payment.status = PAYMENT_STATUS.FAILED;
-      await payment.save();
-      await failOrder(String(payment.orderId));
-      return { handled: true, paymentId: String(payment._id) };
+    } catch (error) {
+      logger.error('Error processing webhook verification', { error: (error as Error).message });
     }
 
     return { handled: false, paymentId: String(payment._id) };

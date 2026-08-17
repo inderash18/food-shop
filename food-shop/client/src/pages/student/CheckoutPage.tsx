@@ -22,7 +22,7 @@ interface CheckoutResponse {
       serviceFee: number;
       total: number;
     };
-    paymentIntent: { paymentId: string; provider: string; amount: number };
+    paymentIntent: { paymentId: string; provider: string; amount: number; metadata?: any; providerPaymentId?: string };
     requiresVerification: boolean;
   };
 }
@@ -45,19 +45,14 @@ export function CheckoutPage() {
     onSuccess: (data) => {
       sessionStorage.setItem('checkoutRequestId', checkoutIdRef.current);
       sessionStorage.setItem('paymentId', data.checkout.paymentIntent.paymentId);
-      sessionStorage.setItem('providerPaymentId', data.checkout.paymentIntent.providerPaymentId);
+      if (data.checkout.paymentIntent.providerPaymentId) sessionStorage.setItem('providerPaymentId', data.checkout.paymentIntent.providerPaymentId);
       sessionStorage.setItem('paymentAmount', String(data.checkout.paymentIntent.amount));
       sessionStorage.setItem('orderId', data.checkout.order._id);
       sessionStorage.setItem('orderNumber', data.checkout.order.orderNumber);
       
-      if (data.checkout.paymentIntent.provider === 'paytm') {
-        sessionStorage.setItem('paytmToken', data.checkout.paymentIntent.clientSecret || '');
-        sessionStorage.setItem('paytmMid', data.checkout.paymentIntent.metadata?.mid || '');
-        sessionStorage.setItem('paytmEnvironment', data.checkout.paymentIntent.metadata?.environment || '');
-        sessionStorage.setItem('paytmUpiId', data.checkout.paymentIntent.metadata?.upiId || '');
-        sessionStorage.setItem('paytmUpiIntentUri', data.checkout.paymentIntent.metadata?.upiIntentUri || '');
-      } else if (data.checkout.paymentIntent.provider === 'mock') {
-        sessionStorage.setItem('paytmUpiIntentUri', `${window.location.origin}/mock-payment/${data.checkout.paymentIntent.paymentId}`);
+      if (data.checkout.paymentIntent.provider === 'merchant-upi') {
+        sessionStorage.setItem('upiIntentUri', data.checkout.paymentIntent.metadata?.upiIntentUri || '');
+        sessionStorage.setItem('merchantUpiId', data.checkout.paymentIntent.metadata?.merchantUpiId || '');
       }
 
       navigate('/payment', { replace: true });

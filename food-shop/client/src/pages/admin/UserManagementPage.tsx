@@ -213,7 +213,7 @@ export function UserManagementPage() {
       {/* User Stats Modal */}
       {selectedUserDetail && (
         <Modal
-          isOpen={Boolean(selectedUserDetail)}
+          open={Boolean(selectedUserDetail)}
           onClose={() => setSelectedUserDetail(null)}
           title={`User Profile — ${selectedUserDetail.user.name}`}
         >
@@ -250,7 +250,7 @@ export function UserManagementPage() {
       {/* Create Staff Modal */}
       {isStaffModalOpen && (
         <Modal
-          isOpen={isStaffModalOpen}
+          open={isStaffModalOpen}
           onClose={() => setIsStaffModalOpen(false)}
           title="Create Staff / Admin Account"
         >
@@ -347,7 +347,7 @@ export function UserManagementPage() {
       {/* Reset Password Modal */}
       {resetPassUserId && (
         <Modal
-          isOpen={Boolean(resetPassUserId)}
+          open={Boolean(resetPassUserId)}
           onClose={() => setResetPassUserId(null)}
           title="Reset User Password"
         >

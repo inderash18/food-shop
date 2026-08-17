@@ -1,20 +1,17 @@
-import { useEffect } from 'react';
 import { Outlet, Link, NavLink, useNavigate } from 'react-router-dom';
-import { Home, UtensilsCrossed, ShoppingBag, User, Bell, LogOut, Utensils } from 'lucide-react';
+import { Home, UtensilsCrossed, ShoppingBag, User, Bell, LogOut, Utensils, Search, MessageSquare, Settings, Star } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { useCart } from '../../hooks/useCart';
 import { useSocket } from '../../hooks/useSocket';
-import { useQuery } from '@tanstack/react-query';
-import { apiGet } from '../../api/client';
 import { cn } from '../../lib/format';
 import { ToastContainer } from '../ui/Toast';
 
 const navItems = [
-  { to: '/', label: 'Home', icon: Home },
+  { to: '/', label: 'Dashboard', icon: Home },
   { to: '/menu', label: 'Menu', icon: UtensilsCrossed },
-  { to: '/cart', label: 'Cart', icon: ShoppingBag },
-  { to: '/orders', label: 'Orders', icon: Utensils },
-  { to: '/profile', label: 'Profile', icon: User },
+  { to: '/orders', label: 'Food Order', icon: ShoppingBag },
+  { to: '/reviews', label: 'Reviews', icon: Star },
+  { to: '/settings', label: 'Setting', icon: Settings },
 ];
 
 export function StudentLayout() {
@@ -24,86 +21,105 @@ export function StudentLayout() {
   const { cart } = useCart();
   useSocket();
 
-  const { data: shop } = useQuery({
-    queryKey: ['shop-settings'],
-    queryFn: () => apiGet<{ settings: { shopName: string; shopStatus: string } }>('/api/settings/public'),
-    staleTime: 60_000,
-  });
-
   const handleLogout = async () => {
     await logout();
     navigate('/');
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="h-8 w-8 rounded-xl bg-primary-600 text-white flex items-center justify-center">
-              <UtensilsCrossed className="h-4 w-4" />
-            </span>
-            <span className="font-bold text-gray-900">{shop?.settings.shopName ?? 'Food Shop'}</span>
+    <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
+      {/* Sidebar */}
+      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col justify-between hidden md:flex shrink-0">
+        <div className="p-6">
+          <Link to="/" className="flex items-center gap-2 mb-10">
+            <span className="font-bold text-2xl tracking-tight">GoMeal<span className="text-yellow-400">.</span></span>
           </Link>
-          <div className="flex items-center gap-1.5">
-            {user && (
-              <>
-                <Link to="/notifications" className="relative p-2 rounded-lg hover:bg-gray-100 text-gray-600" aria-label="Notifications">
-                  <Bell className="h-5 w-5" />
-                </Link>
-                <button onClick={handleLogout} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" aria-label="Logout">
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </>
-            )}
+          
+          <nav className="space-y-2">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 font-medium',
+                    isActive
+                      ? 'bg-yellow-400 text-white shadow-md shadow-yellow-400/30'
+                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                  )
+                }
+              >
+                <item.icon className="h-5 w-5" />
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
+
+        <div className="p-6">
+          <div className="bg-yellow-400 rounded-3xl p-5 text-white relative overflow-hidden shadow-lg shadow-yellow-400/30">
+            <div className="relative z-10">
+              <h4 className="font-bold mb-1">Upgrade your Account to get more benefits</h4>
+              <button className="mt-4 bg-white text-yellow-500 text-sm font-bold px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+                Upgrade
+              </button>
+            </div>
+            {/* Decorative circles */}
+            <div className="absolute top-0 right-0 w-24 h-24 bg-white/20 rounded-full blur-xl -mr-10 -mt-10"></div>
+            <div className="absolute bottom-0 right-0 w-16 h-16 bg-white/30 rounded-full -mr-5 -mb-5"></div>
           </div>
         </div>
-      </header>
+      </aside>
 
-      <main className="max-w-5xl mx-auto px-4 py-5 pb-24 md:pb-10">
-        <Outlet />
-      </main>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* Top Header */}
+        <header className="h-20 bg-gray-50 px-8 flex items-center justify-between shrink-0">
+          <div className="flex-1 flex justify-between items-center max-w-7xl mx-auto w-full">
+            <div className="relative w-96">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <input 
+                type="text" 
+                placeholder="Search" 
+                className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl outline-none focus:ring-2 focus:ring-yellow-400/50 transition-shadow text-sm font-medium placeholder:text-gray-400"
+              />
+            </div>
 
-      {cart.cartCount > 0 && (
-        <Link
-          to="/cart"
-          className="fixed bottom-20 md:bottom-6 right-4 z-40 flex items-center gap-2 bg-primary-600 text-white rounded-full pl-4 pr-5 h-12 shadow-lg shadow-primary-600/30 hover:bg-primary-700"
-        >
-          <ShoppingBag className="h-5 w-5" />
-          <span className="font-semibold">View Cart</span>
-          <span className="bg-white/20 rounded-full px-2 py-0.5 text-sm font-bold">{cart.cartCount}</span>
-        </Link>
-      )}
+            <div className="flex items-center gap-6">
+              <button className="bg-yellow-400 text-white font-semibold px-6 py-3 rounded-2xl hover:bg-yellow-500 transition-colors shadow-sm shadow-yellow-400/20">
+                Add New Menu
+              </button>
 
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 pb-safe">
-        <div className="grid grid-cols-5">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) =>
-                cn('flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium', isActive ? 'text-primary-600' : 'text-gray-500')
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <span className="relative">
-                    <item.icon className="h-5 w-5" />
-                    {item.to === '/cart' && cart.cartCount > 0 && (
-                      <span className="absolute -top-1.5 -right-2 h-4 min-w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-1">
-                        {cart.cartCount > 99 ? '99+' : cart.cartCount}
-                      </span>
-                    )}
-                  </span>
-                  <span className={cn('h-1 w-1 rounded-full', isActive ? 'bg-primary-600' : 'bg-transparent')} />
-                  {item.label}
-                </>
-              )}
-            </NavLink>
-          ))}
-        </div>
-      </nav>
+              <div className="flex items-center gap-4 text-gray-500">
+                <button className="hover:text-gray-900 transition-colors relative">
+                  <MessageSquare className="h-5 w-5" />
+                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 border border-white"></span>
+                </button>
+                <button className="hover:text-gray-900 transition-colors relative">
+                  <Bell className="h-5 w-5" />
+                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 border border-white"></span>
+                </button>
+                <button className="hover:text-gray-900 transition-colors">
+                  <Settings className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+                <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm cursor-pointer" onClick={handleLogout}>
+                  <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" className="h-full w-full object-cover" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Scrollable Page Content */}
+        <main className="flex-1 overflow-y-auto px-8 pb-10">
+          <div className="max-w-7xl mx-auto w-full">
+            <Outlet />
+          </div>
+        </main>
+      </div>
 
       <ToastContainer />
     </div>

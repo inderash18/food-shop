@@ -21,9 +21,7 @@ import couponRoutes from './routes/coupon.routes';
 import settingsRoutes from './routes/settings.routes';
 import auditRoutes from './routes/audit.routes';
 import { registerProvider } from './services/payment.service';
-import { mockPaymentProvider } from './services/providers/mock.provider';
-import { RazorpayProvider } from './services/providers/razorpay.provider';
-import { PaytmProvider } from './services/providers/paytm.provider';
+import { MerchantUPIProvider } from './services/providers/merchant-upi.provider';
 import { logger } from './config/logger';
 
 export function createApp(): express.Application {
@@ -84,9 +82,7 @@ export function createApp(): express.Application {
   app.use(errorHandler);
 
   // Register payment providers
-  registerProvider(mockPaymentProvider);
-  registerProvider(new RazorpayProvider());
-  registerProvider(new PaytmProvider());
+  registerProvider(new MerchantUPIProvider());
 
   return app;
 }

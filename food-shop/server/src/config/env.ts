@@ -27,7 +27,7 @@ export const env = {
     .filter(Boolean),
   requireDomainCheck: bool(process.env.REQUIRE_DOMAIN_CHECK, false),
 
-  paymentProvider: process.env.PAYMENT_PROVIDER ?? 'mock',
+  paymentProvider: process.env.PAYMENT_PROVIDER ?? 'merchant-upi',
   paymentKeyId: process.env.PAYMENT_KEY_ID ?? '',
   paymentKeySecret: process.env.PAYMENT_KEY_SECRET ?? '',
   webhookSecret: process.env.WEBHOOK_SECRET ?? 'dev-webhook-secret',

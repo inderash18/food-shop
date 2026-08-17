@@ -5,6 +5,7 @@ import { connectDatabase } from './config/db';
 import { logger } from './config/logger';
 import { initSocket } from './sockets';
 import { startJobs } from './jobs/reservationExpiry';
+import { startPaymentReconciliationJob } from './jobs/paymentReconciliation.job';
 
 import { validatePaytmConfig } from './config/paytm';
 
@@ -16,6 +17,7 @@ async function main(): Promise<void> {
   const httpServer = createServer(app);
   initSocket(httpServer);
   startJobs();
+  startPaymentReconciliationJob();
 
   httpServer.listen(env.port, () => {
     logger.info(`API listening on http://localhost:${env.port}`);

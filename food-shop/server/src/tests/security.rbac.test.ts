@@ -8,7 +8,7 @@ import { AppError } from '../utils/errors';
 describe('Security & Role-Based Access Control (RBAC)', () => {
   it('blocks student role from accessing admin-restricted middleware', () => {
     const middleware = requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN);
-    const req: any = { user: { role: ROLE.STUDENT } };
+    const req: any = { userId: '123', userRole: ROLE.STUDENT };
     const res: any = {};
     let errorPassed: any = null;
     const next = vi.fn((err) => {
@@ -17,17 +17,17 @@ describe('Security & Role-Based Access Control (RBAC)', () => {
 
     middleware(req, res, next);
     expect(errorPassed).toBeTruthy();
-    expect(errorPassed.status).toBe(403);
+    expect(errorPassed.statusCode).toBe(403);
   });
 
   it('allows admin and super admin to proceed through admin middleware', () => {
     const middleware = requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN);
-    const reqAdmin: any = { user: { role: ROLE.ADMIN } };
+    const reqAdmin: any = { userId: '123', userRole: ROLE.ADMIN };
     const nextAdmin = vi.fn();
     middleware(reqAdmin, {} as any, nextAdmin);
     expect(nextAdmin).toHaveBeenCalledWith();
 
-    const reqSuper: any = { user: { role: ROLE.SUPER_ADMIN } };
+    const reqSuper: any = { userId: '124', userRole: ROLE.SUPER_ADMIN };
     const nextSuper = vi.fn();
     middleware(reqSuper, {} as any, nextSuper);
     expect(nextSuper).toHaveBeenCalledWith();

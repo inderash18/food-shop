@@ -187,7 +187,7 @@ export function CouponsPage() {
       {/* Modal */}
       {isModalOpen && (
         <Modal
-          isOpen={isModalOpen}
+          open={isModalOpen}
           onClose={() => {
             setIsModalOpen(false);
             resetForm();

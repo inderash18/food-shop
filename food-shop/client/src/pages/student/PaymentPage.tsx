@@ -18,37 +18,40 @@ export function PaymentPage() {
   const [providerPaymentId] = useState(() => sessionStorage.getItem('providerPaymentId') ?? '');
   const [amount] = useState(() => Number(sessionStorage.getItem('paymentAmount') ?? 0));
   const [orderNumber] = useState(() => sessionStorage.getItem('orderNumber') ?? '');
-  const [upiIntentUri] = useState(() => sessionStorage.getItem('paytmUpiIntentUri') ?? '');
-  const [upiId] = useState(() => sessionStorage.getItem('paytmUpiId') ?? '');
+  const [upiIntentUri] = useState(() => sessionStorage.getItem('upiIntentUri') ?? '');
+  const [upiId] = useState(() => sessionStorage.getItem('merchantUpiId') ?? '');
 
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes
   const [isCopied, setIsCopied] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
 
-  // Poll for payment status every 5 seconds
-  const { data: statusData, isError, error } = useQuery({
+  // Poll for payment status every 10 seconds, but we also have a manual button
+  const { data: statusData, isError, error, refetch } = useQuery({
     queryKey: ['payment-status', paymentId],
     queryFn: async () => {
       if (!paymentId) return null;
-      // We directly query our backend status which should reflect verified state
-      // if webhook arrived, or we can use the /verify endpoint.
-      // Wait, to actively verify, we should use POST /verify to make backend check Paytm.
-      // We will use POST /api/payments/verify for active verification.
-      const res = await apiClient.post(`/api/payments/verify`, { paymentId });
-      return res.data.data;
+      try {
+        const res = await apiClient.post(`/api/payments/verify`, { paymentId });
+        return res.data.data;
+      } catch (err: any) {
+        // If it throws an error (e.g. AMOUNT_MISMATCH), we catch it
+        if (err.response?.data?.error?.code) {
+          throw err;
+        }
+        return { payment: { status: 'PENDING' } };
+      }
     },
     refetchInterval: (query) => {
       const data = query.state.data as any;
       if (isExpired) return false;
-      if (data?.payment?.status === PAYMENT_SUCCESS || data?.order?.status === ORDER_CONFIRMED) {
-        return false;
-      }
-      if (data?.payment?.status === PAYMENT_FAILED) {
-        return false;
-      }
-      return 5000;
+      if (data?.payment?.status === PAYMENT_SUCCESS || data?.order?.status === ORDER_CONFIRMED) return false;
+      if (data?.payment?.status === PAYMENT_FAILED) return false;
+      return 10000;
     },
     enabled: !!paymentId && !isExpired,
+    retry: false,
   });
 
   useEffect(() => {
@@ -56,6 +59,18 @@ export function PaymentPage() {
       navigate('/cart', { replace: true });
     }
   }, [paymentId, navigate]);
+
+  const handleManualCheck = async () => {
+    setIsChecking(true);
+    setVerificationError(null);
+    try {
+      await refetch();
+    } catch (err: any) {
+      setVerificationError(err.response?.data?.error?.message || 'Verification failed. Please try again.');
+    } finally {
+      setIsChecking(false);
+    }
+  };
 
   useEffect(() => {
     if (timeLeft <= 0) {
@@ -204,20 +219,36 @@ export function PaymentPage() {
           </div>
 
           {/* Footer Status Section */}
-          <div className="bg-gray-900 p-5 flex flex-col items-center text-center space-y-3">
+          <div className="bg-gray-900 p-5 flex flex-col items-center text-center space-y-4">
             <div className="flex items-center gap-2 text-white">
               <ShieldCheck className="h-4 w-4 text-green-400" />
               <span className="text-sm font-medium">Secure UPI Payment</span>
             </div>
-            
-            <div className="flex items-center justify-between w-full text-xs font-medium px-2">
-              <div className="flex items-center gap-2 text-gray-400">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Waiting for payment...
+
+            {verificationError && (
+              <div className="w-full bg-red-900/50 border border-red-500/50 text-red-200 text-xs p-2.5 rounded-lg text-left">
+                {verificationError}
               </div>
-              <div className="flex items-center gap-1.5 bg-gray-800 text-gray-300 px-2 py-1 rounded-md">
-                <RefreshCcw className="h-3 w-3" />
-                <span className={`${timeLeft < 60 ? 'text-red-400' : ''}`}>{timeString}</span>
+            )}
+            
+            <div className="flex flex-col gap-3 w-full">
+              <Button 
+                onClick={handleManualCheck}
+                disabled={isChecking || isFailed}
+                className="w-full bg-white text-gray-900 hover:bg-gray-100 border-0"
+              >
+                {isChecking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCcw className="h-4 w-4 mr-2" />}
+                {isChecking ? 'Verifying...' : 'Check Payment Status'}
+              </Button>
+              
+              <div className="flex items-center justify-between w-full text-xs font-medium px-2">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Auto-verifying...
+                </div>
+                <div className="flex items-center gap-1.5 bg-gray-800 text-gray-300 px-2 py-1 rounded-md">
+                  <span className={`${timeLeft < 60 ? 'text-red-400' : ''}`}>{timeString}</span>
+                </div>
               </div>
             </div>
           </div>

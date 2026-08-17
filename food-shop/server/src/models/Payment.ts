@@ -7,9 +7,14 @@ export interface IPayment {
   userId: Types.ObjectId;
   provider: string;
   providerPaymentId: string;
+  providerTransactionId?: string;
   amount: number;
   currency: string;
   status: PaymentStatus;
+  verificationStatus: 'NOT_VERIFIED' | 'VERIFYING' | 'VERIFIED' | 'REJECTED';
+  failureReason?: string;
+  merchantAccountId?: string;
+  merchantUpiId?: string;
   verifiedAt?: Date;
   metadata?: Record<string, unknown>;
   idempotencyKey: string;
@@ -23,9 +28,14 @@ const paymentSchema = new Schema<IPayment>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     provider: { type: String, required: true },
     providerPaymentId: { type: String, required: true, unique: true, index: true },
+    providerTransactionId: { type: String, index: true },
     amount: { type: Number, required: true, min: 0 },
     currency: { type: String, required: true, default: 'INR' },
     status: { type: String, enum: Object.values(PAYMENT_STATUS), default: PAYMENT_STATUS.PENDING, index: true },
+    verificationStatus: { type: String, enum: ['NOT_VERIFIED', 'VERIFYING', 'VERIFIED', 'REJECTED'], default: 'NOT_VERIFIED' },
+    failureReason: { type: String },
+    merchantAccountId: { type: String },
+    merchantUpiId: { type: String },
     verifiedAt: { type: Date },
     metadata: { type: Schema.Types.Mixed },
     idempotencyKey: { type: String, required: true, unique: true, index: true },

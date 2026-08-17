@@ -163,7 +163,7 @@ export function CategoryManagementPage() {
       {/* Modal */}
       {isModalOpen && (
         <Modal
-          isOpen={isModalOpen}
+          open={isModalOpen}
           onClose={() => {
             setIsModalOpen(false);
             resetForm();

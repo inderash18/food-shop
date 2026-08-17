@@ -16,6 +16,11 @@ export interface IShopSettings {
   orderPreparationEnabled: boolean;
   orderCloseTime?: string;
   orderOpenTime?: string;
+  merchantUpiId?: string;
+  merchantName?: string;
+  merchantProvider?: string;
+  merchantVerificationStatus?: 'PENDING' | 'UNDER_REVIEW' | 'VERIFIED' | 'SUSPENDED' | 'REJECTED';
+  merchantAccountId?: string;
   updatedAt: Date;
 }
 
@@ -35,6 +40,11 @@ const shopSettingsSchema = new Schema<IShopSettings>(
     orderPreparationEnabled: { type: Boolean, default: true },
     orderCloseTime: { type: String },
     orderOpenTime: { type: String },
+    merchantUpiId: { type: String },
+    merchantName: { type: String },
+    merchantProvider: { type: String },
+    merchantVerificationStatus: { type: String, enum: ['PENDING', 'UNDER_REVIEW', 'VERIFIED', 'SUSPENDED', 'REJECTED'], default: 'PENDING' },
+    merchantAccountId: { type: String },
   },
   { timestamps: true }
 );

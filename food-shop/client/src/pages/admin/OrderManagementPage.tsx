@@ -214,7 +214,7 @@ export function OrderManagementPage() {
 
       {/* Detail Modal */}
       {selectedOrder && (
-        <Modal isOpen={Boolean(selectedOrder)} onClose={() => setSelectedOrder(null)} title={`Order #${selectedOrder.orderNumber}`}>
+        <Modal open={Boolean(selectedOrder)} onClose={() => setSelectedOrder(null)} title={`Order #${selectedOrder.orderNumber}`}>
           <div className="space-y-4 text-xs">
             <div className="flex justify-between border-b border-slate-100 pb-3">
               <div>

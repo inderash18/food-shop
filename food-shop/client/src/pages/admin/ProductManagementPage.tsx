@@ -249,7 +249,7 @@ export function ProductManagementPage() {
       {/* Create / Edit Modal */}
       {(isCreateModalOpen || editingProduct) && (
         <Modal
-          isOpen={isCreateModalOpen || Boolean(editingProduct)}
+          open={isCreateModalOpen || Boolean(editingProduct)}
           onClose={() => {
             setIsCreateModalOpen(false);
             setEditingProduct(null);

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { confirmOrder } from '../services/order.service';
-import { Order, Product } from '../models';
+import { Order, Product, Notification, Cart } from '../models';
 import { ORDER_STATUS, PAYMENT_STATUS } from '../constants';
+import * as auditService from '../services/audit.service';
 
 describe('Payment Webhook Idempotency', () => {
   beforeEach(() => {
@@ -9,10 +10,13 @@ describe('Payment Webhook Idempotency', () => {
   });
 
   it('handles duplicate payment webhook delivery without double-committing inventory', async () => {
+    vi.spyOn(Notification, 'create').mockResolvedValue({} as any);
+    vi.spyOn(Cart, 'updateOne').mockResolvedValue({} as any);
+    vi.spyOn(auditService, 'recordAudit').mockResolvedValue({} as any);
     let orderState = {
       _id: 'order_123',
       orderNumber: 'COL-2026-0001',
-      userId: 'user_456',
+      userId: '507f1f77bcf86cd799439011',
       status: ORDER_STATUS.PAYMENT_PENDING,
       paymentStatus: PAYMENT_STATUS.PENDING,
       items: [{ productId: 'prod_1', quantity: 2, priceSnapshot: 50, productNameSnapshot: 'Veg Rice', subtotal: 100 }],

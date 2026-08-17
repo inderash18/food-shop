@@ -1,6 +1,7 @@
 import express, { Router } from 'express';
-import { verifyPayment, simulatePayment, webhookHandler, getPaymentStatus } from '../controllers/payment.controller';
-import { requireAuth } from '../middlewares/auth';
+import { verifyPayment, webhookHandler, getPaymentStatus, requestRefund } from '../controllers/payment.controller';
+import { requireAuth, requireRole } from '../middlewares/auth';
+import { ROLE } from '../constants';
 import { validate } from '../middlewares/validate';
 import { z } from 'zod';
 import { rateLimit } from '../middlewares/rateLimit';
@@ -8,10 +9,6 @@ import { rateLimit } from '../middlewares/rateLimit';
 const router = Router();
 
 const verifySchema = z.object({ paymentId: z.string().min(1) });
-const simulateSchema = z.object({
-  paymentId: z.string().min(1),
-  outcome: z.enum(['success', 'failure']).optional(),
-});
 
 router.post(
   '/verify',
@@ -21,11 +18,11 @@ router.post(
   verifyPayment
 );
 
-router.post('/simulate', requireAuth(), validate(simulateSchema), simulatePayment);
-
 router.get('/status/:paymentId', requireAuth(), getPaymentStatus);
 
-router.post('/webhook/mock', express.text({ type: '*/*' }), webhookHandler('mock'));
-router.post('/webhook/razorpay', express.text({ type: '*/*' }), webhookHandler('razorpay'));
+// Admin / specific roles for refund
+router.post('/:paymentId/refund', requireAuth(), requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN), requestRefund);
+
+router.post('/webhooks/merchant-upi', express.raw({ type: '*/*', limit: '256kb' }), webhookHandler('merchant-upi'));
 
 export default router;
