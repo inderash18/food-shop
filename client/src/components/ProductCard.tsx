@@ -1,10 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Minus, Leaf, Drumstick } from 'lucide-react';
+import { Plus, Minus, Heart, Star } from 'lucide-react';
 import type { Product } from '../lib/types';
 import { formatINR } from '../lib/format';
 import { useCart } from '../hooks/useCart';
 import { cn } from '../lib/format';
 import { useAuthStore } from '../stores/auth';
+import { useState } from 'react';
 
 export function ProductCard({ product }: { product: Product }) {
   const navigate = useNavigate();
@@ -12,7 +13,8 @@ export function ProductCard({ product }: { product: Product }) {
   const { cart, add, remove } = useCart();
   const inCart = cart.items.find((i) => i.productId === product._id);
   const soldOut = (product.effectiveStock ?? product.stock) <= 0;
-  const imageUrl = product.imageUrl ?? `/images/${product.slug}.svg`;
+  
+  const [wishlisted, setWishlisted] = useState(false);
 
   const handleAdd = () => {
     if (!user) {
@@ -22,58 +24,75 @@ export function ProductCard({ product }: { product: Product }) {
     add.mutate({ productId: product._id });
   };
 
+  const handleToggleWishlist = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setWishlisted(!wishlisted);
+  };
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-      <Link to={`/menu/${product._id}`} className="relative block h-36 bg-gray-100 overflow-hidden">
-        {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-cover" />
-        ) : (
-          <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary-50 to-blue-50">
-            <span className="text-4xl">{product.isVeg ? '🍛' : '🍗'}</span>
-          </div>
+    <div className="bg-surface rounded-3xl border border-border shadow-card p-4 flex flex-col transition-shadow hover:shadow-soft relative">
+      <button 
+        onClick={handleToggleWishlist}
+        className={cn(
+          "absolute top-4 left-4 z-10 w-6 h-6 rounded flex items-center justify-center transition-colors",
+          wishlisted ? "bg-primary-500 text-white" : "bg-gray-100 text-gray-400"
         )}
-        <span
-          className={cn(
-            'absolute top-2 right-2 h-6 w-6 rounded-md bg-white shadow flex items-center justify-center',
-            product.isVeg ? 'text-green-600' : 'text-red-600'
-          )}
-          title={product.isVeg ? 'Vegetarian' : 'Non-vegetarian'}
-        >
-          {product.isVeg ? <Leaf className="h-4 w-4" /> : <Drumstick className="h-4 w-4" />}
-        </span>
-        {product.isPopular && (
-          <span className="absolute top-2 left-2 bg-amber-400 text-amber-950 text-[10px] font-bold px-2 py-0.5 rounded-full">POPULAR</span>
+      >
+        <Heart className="w-3.5 h-3.5" fill={wishlisted ? "currentColor" : "none"} />
+      </button>
+
+      <Link to={`/menu/${product._id}`} className="relative block h-40 w-full mb-3 rounded-2xl overflow-hidden group">
+        {product.imageUrl ? (
+          <img src={product.imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center bg-gray-50 group-hover:bg-gray-100 transition-colors">
+            <span className="text-6xl drop-shadow-sm">{product.isVeg ? '🥗' : '🍔'}</span>
+          </div>
         )}
       </Link>
 
-      <div className="p-3.5 flex flex-col flex-1">
+      <div className="flex flex-col flex-1">
         <Link to={`/menu/${product._id}`}>
-          <h3 className="font-semibold text-gray-900 leading-snug line-clamp-1">{product.name}</h3>
-          <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{product.description ?? 'Freshly prepared at the food shop'}</p>
+          <h3 className="font-semibold text-gray-900 text-[17px] mb-1 leading-tight line-clamp-1">{product.name}</h3>
         </Link>
-
-        <div className="mt-auto pt-3 flex items-end justify-between gap-2">
-          <div>
-            <p className="font-bold text-gray-900">{formatINR(product.price)}</p>
-            <p className="text-[11px] text-gray-400">~{product.prepMinutes} min</p>
+        
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-end gap-1.5">
+            <span className="font-bold text-primary-500 text-lg">{formatINR(product.price)}</span>
+            <span className="text-[11px] text-gray-400 font-medium mb-1 line-through">{formatINR(product.price * 1.15)}</span>
           </div>
+          
+          <div className="flex items-center gap-1 text-amber-400">
+            <Star className="w-3 h-3 fill-current" />
+            <span className="text-[11px] text-gray-500 font-medium">{product.prepMinutes}m</span>
+          </div>
+        </div>
 
+        <div className="mt-auto grid grid-cols-2 gap-2">
+          <button
+            onClick={handleToggleWishlist}
+            className="flex items-center justify-center bg-gray-100 text-gray-600 text-xs font-semibold py-2.5 rounded-full hover:bg-gray-200 transition-colors"
+          >
+            Wishlist
+          </button>
+          
           {soldOut ? (
-            <span className="text-xs font-bold text-red-500 bg-red-50 px-3 py-2 rounded-xl">SOLD OUT</span>
+             <div className="flex items-center justify-center bg-gray-100 text-gray-400 text-xs font-semibold py-2.5 rounded-full cursor-not-allowed">
+               Sold Out
+             </div>
           ) : inCart ? (
-            <div className="flex items-center gap-2 bg-primary-50 rounded-xl px-1.5 py-1">
+            <div className="flex items-center justify-between bg-primary-50 rounded-full px-2 py-1 border border-primary-100">
               <button
                 onClick={() => (inCart.quantity === 1 ? remove.mutate(product._id) : add.mutate({ productId: product._id }))}
-                className="h-7 w-7 rounded-lg bg-white shadow-sm flex items-center justify-center text-primary-600"
-                aria-label="Decrease"
+                className="h-7 w-7 rounded-full bg-white text-primary-600 flex items-center justify-center shadow-sm hover:bg-gray-50"
               >
                 <Minus className="h-3.5 w-3.5" />
               </button>
-              <span className="text-sm font-bold text-primary-700 min-w-5 text-center">{inCart.quantity}</span>
+              <span className="text-sm font-bold text-primary-600">{inCart.quantity}</span>
               <button
                 onClick={handleAdd}
-                className="h-7 w-7 rounded-lg bg-white shadow-sm flex items-center justify-center text-primary-600"
-                aria-label="Increase"
+                className="h-7 w-7 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-sm hover:bg-primary-600"
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>
@@ -81,10 +100,9 @@ export function ProductCard({ product }: { product: Product }) {
           ) : (
             <button
               onClick={handleAdd}
-              className="flex items-center gap-1 bg-primary-600 text-white text-sm font-semibold px-3.5 py-2 rounded-xl hover:bg-primary-700 transition-colors"
+              className="flex items-center justify-center bg-primary-500 text-white text-xs font-semibold py-2.5 rounded-full hover:bg-primary-600 transition-colors shadow-sm"
             >
-              <Plus className="h-4 w-4" />
-              ADD
+              Order Now
             </button>
           )}
         </div>

@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -35,6 +37,8 @@ html {
 }
 
 body {
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Outfit', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  @apply bg-background text-gray-900;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }

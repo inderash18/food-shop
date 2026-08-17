@@ -27,87 +27,87 @@ export function StudentLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
+    <div className="flex h-screen bg-background font-sans text-gray-900 overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col justify-between hidden md:flex shrink-0">
-        <div className="p-6">
-          <Link to="/" className="flex items-center gap-2 mb-10">
-            <span className="font-bold text-2xl tracking-tight">GoMeal<span className="text-yellow-400">.</span></span>
+      <aside className="w-64 bg-surface border-r border-border flex flex-col justify-between hidden md:flex shrink-0 z-20">
+        <div className="p-6 flex flex-col h-full">
+          <Link to="/" className="flex items-center gap-2 mb-10 pl-2">
+             <div className="w-8 h-8 rounded-full bg-primary-500 text-white flex items-center justify-center font-bold text-lg">
+               f
+             </div>
+            <span className="font-bold text-xl tracking-tight text-primary-500">foodislice</span>
           </Link>
           
-          <nav className="space-y-2">
+          <nav className="space-y-1.5 flex-1">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 font-medium',
+                    'flex items-center gap-3 px-5 py-3.5 rounded-full transition-all duration-200 font-medium text-[15px]',
                     isActive
-                      ? 'bg-yellow-400 text-white shadow-md shadow-yellow-400/30'
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-primary-50 text-primary-500 border border-primary-100 shadow-sm'
+                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-transparent'
                   )
                 }
               >
-                <item.icon className="h-5 w-5" />
+                <item.icon className="h-[18px] w-[18px]" />
                 {item.label}
               </NavLink>
             ))}
           </nav>
-        </div>
 
-        <div className="p-6">
-          <div className="bg-yellow-400 rounded-3xl p-5 text-white relative overflow-hidden shadow-lg shadow-yellow-400/30">
-            <div className="relative z-10">
-              <h4 className="font-bold mb-1">Upgrade your Account to get more benefits</h4>
-              <button className="mt-4 bg-white text-yellow-500 text-sm font-bold px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">
-                Upgrade
-              </button>
+          <div className="mt-auto">
+            <div className="bg-gray-50 rounded-3xl p-5 text-gray-800 text-center relative overflow-hidden border border-gray-100">
+               <div className="w-full h-32 bg-gray-200 rounded-2xl mb-4 overflow-hidden">
+                  <img src="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=400&q=80" alt="Food Delivery" className="w-full h-full object-cover opacity-80" />
+               </div>
+               <h4 className="font-bold mb-2 text-sm text-gray-900">How to order food?</h4>
+               <p className="text-xs text-gray-500 mb-4 leading-relaxed">Ordering food from our web app is a seamless and delightful experience designed to satisfy you effortlessly...</p>
+               <div className="flex items-center justify-center gap-1.5">
+                  <div className="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center text-gray-400 text-[10px] cursor-pointer">&lt;</div>
+                  <div className="w-5 h-5 rounded-full bg-primary-500 text-white flex items-center justify-center text-[10px] cursor-pointer">&gt;</div>
+               </div>
             </div>
-            {/* Decorative circles */}
-            <div className="absolute top-0 right-0 w-24 h-24 bg-white/20 rounded-full blur-xl -mr-10 -mt-10"></div>
-            <div className="absolute bottom-0 right-0 w-16 h-16 bg-white/30 rounded-full -mr-5 -mb-5"></div>
           </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background">
         {/* Top Header */}
-        <header className="h-20 bg-gray-50 px-8 flex items-center justify-between shrink-0">
-          <div className="flex-1 flex justify-between items-center max-w-7xl mx-auto w-full">
-            <div className="relative w-96">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <input 
-                type="text" 
-                placeholder="Search" 
-                className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl outline-none focus:ring-2 focus:ring-yellow-400/50 transition-shadow text-sm font-medium placeholder:text-gray-400"
-              />
+        <header className="h-[88px] px-8 flex items-center justify-between shrink-0 sticky top-0 z-10 bg-background/80 backdrop-blur-md">
+          <div className="flex-1 flex justify-between items-center w-full max-w-[1600px] mx-auto gap-4">
+            
+            {/* Search and Filter */}
+            <div className="flex items-center gap-3 w-full max-w-lg">
+              <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 h-[18px] w-[18px]" />
+                <input 
+                  type="text" 
+                  placeholder="Search food" 
+                  className="w-full pl-11 pr-4 py-3 bg-surface border border-gray-100 rounded-full outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-300 transition-all text-sm font-medium placeholder:text-gray-400 shadow-sm"
+                />
+              </div>
+              <button className="bg-primary-500 text-white font-medium px-5 py-3 rounded-full hover:bg-primary-600 transition-colors shadow-sm flex items-center gap-2 text-sm shrink-0">
+                Filter
+                <Settings className="w-3.5 h-3.5" />
+              </button>
             </div>
 
-            <div className="flex items-center gap-6">
-              <button className="bg-yellow-400 text-white font-semibold px-6 py-3 rounded-2xl hover:bg-yellow-500 transition-colors shadow-sm shadow-yellow-400/20">
-                Add New Menu
+            {/* Right Actions */}
+            <div className="flex items-center gap-5 ml-auto">
+              <button className="text-gray-400 hover:text-gray-800 transition-colors relative">
+                <Bell className="h-5 w-5" />
+                <span className="absolute 1 top-0 right-0 h-1.5 w-1.5 rounded-full bg-red-500"></span>
               </button>
 
-              <div className="flex items-center gap-4 text-gray-500">
-                <button className="hover:text-gray-900 transition-colors relative">
-                  <MessageSquare className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 border border-white"></span>
-                </button>
-                <button className="hover:text-gray-900 transition-colors relative">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 border border-white"></span>
-                </button>
-                <button className="hover:text-gray-900 transition-colors">
-                  <Settings className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-                <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm cursor-pointer" onClick={handleLogout}>
-                  <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" className="h-full w-full object-cover" />
+              <div className="flex items-center gap-2.5 pl-5 border-l border-gray-200 cursor-pointer" onClick={handleLogout}>
+                <div className="h-9 w-9 rounded-full bg-gray-200 overflow-hidden border border-gray-100 shadow-sm">
+                  <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=David" alt="User" className="h-full w-full object-cover" />
                 </div>
+                <span className="text-sm font-medium text-gray-700 hidden sm:block">David Brown</span>
               </div>
             </div>
           </div>
