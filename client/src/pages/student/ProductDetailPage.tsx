@@ -9,7 +9,7 @@ import type { Product } from '../../lib/types';
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { cart, add, remove } = useCart();
+  const { cart, add, remove, update } = useCart();
 
   const { data, isLoading } = useQuery({
     queryKey: ['product', id],
@@ -80,7 +80,7 @@ export function ProductDetailPage() {
             ) : inCart ? (
               <div className="flex items-center gap-3 bg-primary-50 rounded-xl px-2 py-1.5">
                 <button
-                  onClick={() => (inCart.quantity === 1 ? remove.mutate(product._id) : add.mutate({ productId: product._id }))}
+                  onClick={() => (inCart.quantity === 1 ? remove.mutate(product._id) : update.mutate({ productId: product._id, quantity: inCart.quantity - 1 }))}
                   className="h-8 w-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-primary-600"
                   aria-label="Decrease"
                 >

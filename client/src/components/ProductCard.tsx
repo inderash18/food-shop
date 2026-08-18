@@ -10,7 +10,7 @@ import { useState } from 'react';
 export function ProductCard({ product }: { product: Product }) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const { cart, add, remove } = useCart();
+  const { cart, add, remove, update } = useCart();
   const inCart = cart.items.find((i) => i.productId === product._id);
   const soldOut = (product.effectiveStock ?? product.stock) <= 0;
   
@@ -84,7 +84,7 @@ export function ProductCard({ product }: { product: Product }) {
           ) : inCart ? (
             <div className="flex items-center justify-between bg-primary-50 rounded-full px-2 py-1 border border-primary-100">
               <button
-                onClick={() => (inCart.quantity === 1 ? remove.mutate(product._id) : add.mutate({ productId: product._id }))}
+                onClick={() => (inCart.quantity === 1 ? remove.mutate(product._id) : update.mutate({ productId: product._id, quantity: inCart.quantity - 1 }))}
                 className="h-7 w-7 rounded-full bg-white text-primary-600 flex items-center justify-center shadow-sm hover:bg-gray-50"
               >
                 <Minus className="h-3.5 w-3.5" />
