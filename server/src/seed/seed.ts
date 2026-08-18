@@ -1,5 +1,5 @@
 import { connectDatabase, disconnectDatabase } from '../config/db';
-import { User, Category, Product, ShopSettings, Coupon, InventoryTransaction } from '../models';
+import { User, Category, Product, ShopSettings, Coupon, InventoryTransaction, Event } from '../models';
 import { ROLE, SHOP_STATUS } from '../constants';
 import { hashPassword } from '../utils/crypto';
 import { logger } from '../config/logger';
@@ -125,6 +125,112 @@ async function seed(): Promise<void> {
       isActive: true,
     });
     logger.info('Coupon WELCOME10 created');
+  }
+
+  if ((await Event.countDocuments()) === 0) {
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const dayAfter = new Date(Date.now() + 172800000).toISOString().split('T')[0];
+
+    const generateLayout = (rows: string[], cols: number, vipRows: string[] = ['A'], premRows: string[] = ['B', 'C'], basePrice: number = 80) => {
+      const layout = [];
+      for (const r of rows) {
+        for (let c = 1; c <= cols; c++) {
+          const isVip = vipRows.includes(r);
+          const isPrem = premRows.includes(r);
+          layout.push({
+            row: r,
+            number: c,
+            label: `${r}${c}`,
+            type: (isVip ? 'VIP' : isPrem ? 'PREMIUM' : 'STANDARD') as 'VIP' | 'PREMIUM' | 'STANDARD',
+            price: isVip ? basePrice + 70 : isPrem ? basePrice + 30 : basePrice,
+          });
+        }
+      }
+      return layout;
+    };
+
+    const seedEvents = [
+      {
+        title: 'Campus Grand Auditorium Showcase',
+        category: 'Auditorium',
+        venue: 'Main Auditorium - Screen 1',
+        tagline: 'Exclusive campus film premiere & tech keynote with plush recliner seating.',
+        description: 'Experience high-fidelity acoustics and reserved seating with fast pre-order snack pickup.',
+        bannerImage: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=800&q=80',
+        startingPrice: 120,
+        durationMinutes: 120,
+        dates: [today, tomorrow, dayAfter],
+        timeSlots: [
+          { time: '11:00 AM - 01:00 PM', label: 'Morning Show', totalSeats: 36, availableSeats: 36 },
+          { time: '03:30 PM - 05:30 PM', label: 'Matinee Session', totalSeats: 36, availableSeats: 36 },
+          { time: '07:00 PM - 09:00 PM', label: 'Prime Evening', totalSeats: 36, availableSeats: 36 },
+        ],
+        seatLayout: generateLayout(['A', 'B', 'C', 'D', 'E', 'F'], 6, ['A'], ['B', 'C'], 120),
+        collectionCounter: 'Counter 1 - Auditorium Fast Track',
+        isActive: true,
+      },
+      {
+        title: 'Central Dining Hall — VIP Table Lounge',
+        category: 'Dining Lounge',
+        venue: 'Central Dining Hall - Zone A',
+        tagline: 'Skip the lunch & dinner counter rush with guaranteed table seating.',
+        description: 'Reserve private dining tables for your team or study group with hot meals prepared on arrival.',
+        bannerImage: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80',
+        startingPrice: 50,
+        durationMinutes: 60,
+        dates: [today, tomorrow, dayAfter],
+        timeSlots: [
+          { time: '12:30 PM - 01:30 PM', label: 'Lunch Peak 1', totalSeats: 24, availableSeats: 24 },
+          { time: '01:30 PM - 02:30 PM', label: 'Lunch Peak 2', totalSeats: 24, availableSeats: 24 },
+          { time: '07:30 PM - 08:30 PM', label: 'Dinner Session', totalSeats: 24, availableSeats: 24 },
+          { time: '08:30 PM - 09:30 PM', label: 'Late Dinner', totalSeats: 24, availableSeats: 24 },
+        ],
+        seatLayout: generateLayout(['T1', 'T2', 'T3', 'T4'], 6, ['T1'], ['T2'], 50),
+        collectionCounter: 'Counter 2 - Express Pick',
+        isActive: true,
+      },
+      {
+        title: 'Live Acoustic & Sunset Garden Bistro',
+        category: 'Campus Bistro',
+        venue: 'Terrace Garden Lounge - Level 3',
+        tagline: 'Evening coffee, artisan mocktails, and live acoustic music sets.',
+        description: 'Relax with panoramic campus sunset views and reserved premium lounge chairs.',
+        bannerImage: 'https://images.unsplash.com/photo-1543007630-9710e4a00a20?auto=format&fit=crop&w=800&q=80',
+        startingPrice: 80,
+        durationMinutes: 90,
+        dates: [today, tomorrow, dayAfter],
+        timeSlots: [
+          { time: '05:00 PM - 06:30 PM', label: 'Sunset Acoustic', totalSeats: 24, availableSeats: 24 },
+          { time: '07:00 PM - 08:30 PM', label: 'Evening Live Session', totalSeats: 24, availableSeats: 24 },
+          { time: '09:00 PM - 10:30 PM', label: 'Night Jazz & Brews', totalSeats: 24, availableSeats: 24 },
+        ],
+        seatLayout: generateLayout(['S', 'B', 'C', 'D'], 6, ['S'], ['B'], 80),
+        collectionCounter: 'Terrace Barista Bar',
+        isActive: true,
+      },
+      {
+        title: 'Late Night Exam Pods & Snack Lounge',
+        category: 'Study Pods',
+        venue: 'Student Hub - 2nd Floor Silent Zone',
+        tagline: 'Quiet study desks with high-speed power, ergonomic chairs, and energy fuel.',
+        description: 'Zero distractions with instant hot coffee and late night snacks delivered to your station.',
+        bannerImage: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80',
+        startingPrice: 40,
+        durationMinutes: 180,
+        dates: [today, tomorrow, dayAfter],
+        timeSlots: [
+          { time: '08:00 PM - 11:00 PM', label: 'Evening Focus', totalSeats: 20, availableSeats: 20 },
+          { time: '11:00 PM - 02:00 AM', label: 'Midnight Sprint', totalSeats: 20, availableSeats: 20 },
+        ],
+        seatLayout: generateLayout(['D1', 'D2', 'D3', 'D4'], 5, ['D1'], ['D2'], 40),
+        collectionCounter: 'Hub Express Counter',
+        isActive: true,
+      },
+    ];
+
+    await Event.insertMany(seedEvents);
+    logger.info(`Seeded ${seedEvents.length} venue events with interactive seat maps`);
   }
 
   await disconnectDatabase();

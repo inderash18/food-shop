@@ -1,7 +1,7 @@
 import { Types } from 'mongoose';
 import { Payment, Order, IPayment, IOrder } from '../models';
 import { PAYMENT_STATUS, PaymentStatus } from '../constants';
-import { AppError, NotFoundError, PaymentError, ConflictError } from '../utils/errors';
+import { AppError, NotFoundError, PaymentError, ConflictError, PaymentProviderNotConfiguredError } from '../utils/errors';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 
@@ -55,7 +55,11 @@ class PaymentGatewayService {
 
   getProvider(name: string): PaymentProvider {
     const provider = this.providers.get(name);
-    if (!provider) throw new AppError(500, 'INTERNAL_ERROR', `Payment provider '${name}' not configured`);
+    if (!provider) {
+      throw new PaymentProviderNotConfiguredError(
+        `Payment provider '${name}' is not configured. Please configure payment credentials.`
+      );
+    }
     return provider;
   }
 

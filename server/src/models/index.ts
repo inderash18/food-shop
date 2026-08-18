@@ -21,5 +21,7 @@ export { AuditLog } from './AuditLog';
 export { ShopSequence } from './ShopSequence';
 export { Coupon } from './Coupon';
 export type { ICoupon } from './Coupon';
+export { Event } from './Event';
+export type { IEvent, ISeatLayoutItem, ITimeSlot } from './Event';
 export { ShopSettings } from './ShopSettings';
 export type { IShopSettings } from './ShopSettings';

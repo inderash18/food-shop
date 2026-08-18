@@ -3,7 +3,7 @@ import { Order } from '../models';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/response';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
-import { cancelOrder, isConfirmedPaid } from '../services/order.service';
+import { cancelOrder, isConfirmedPaid, markOrderCollected, updateKitchenPrepStatus } from '../services/order.service';
 import { PAYMENT_STATUS, ORDER_STATUS } from '../constants';
 import { Types } from 'mongoose';
 
@@ -27,15 +27,37 @@ export const getMyOrder = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getOrderByNumber = asyncHandler(async (req: Request, res: Response) => {
-  const order = await Order.findOne({ orderNumber: req.params.orderNumber.toUpperCase() });
+  const order = await Order.findOne({
+    $or: [{ orderNumber: req.params.orderNumber.toUpperCase() }, { tokenNumber: req.params.orderNumber.toUpperCase() }],
+  });
   if (!order) throw new NotFoundError('Order not found');
-  if (String(order.userId) !== req.userId) throw new ForbiddenError('You can only view your own orders');
+  if (String(order.userId) !== req.userId && req.userRole === 'STUDENT') {
+    throw new ForbiddenError('You can only view your own orders');
+  }
   sendSuccess(res, { order });
 });
 
 export const cancelMyOrder = asyncHandler(async (req: Request, res: Response) => {
   const order = await cancelOrder(req.params.orderId, req.userId!);
   sendSuccess(res, { order, message: 'Order cancelled' });
+});
+
+export const counterCollectOrder = asyncHandler(async (req: Request, res: Response) => {
+  const { qrOrToken } = req.body;
+  if (!qrOrToken || typeof qrOrToken !== 'string') {
+    throw new BadRequestError('qrOrToken parameter is required');
+  }
+  const result = await markOrderCollected(qrOrToken.trim(), req.userId!, req.user?.email);
+  sendSuccess(res, result);
+});
+
+export const updateKitchenPrepStatusController = asyncHandler(async (req: Request, res: Response) => {
+  const { prepStatus } = req.body;
+  if (!['CONFIRMED', 'PREPARING', 'READY_FOR_COLLECTION', 'COLLECTED'].includes(prepStatus)) {
+    throw new BadRequestError('Invalid prepStatus');
+  }
+  const order = await updateKitchenPrepStatus(req.params.orderId, prepStatus, req.userId!, req.user?.email);
+  sendSuccess(res, { order, message: `Status updated to ${prepStatus}` });
 });
 
 export const getAdminOrders = asyncHandler(async (req: Request, res: Response) => {
@@ -72,13 +94,11 @@ export const getAdminOrders = asyncHandler(async (req: Request, res: Response) =
   }
   if (q.search?.trim()) {
     const term = q.search.trim().toUpperCase();
-    const numeric = /^\d+$/.test(term);
     const isObjectId = /^[a-f\d]{24}$/i.test(term);
     filter.$or = [
       { orderNumber: new RegExp(term, 'i') },
-      { studentId: new RegExp(term, 'i') },
+      { tokenNumber: new RegExp(term, 'i') },
       { userId: isObjectId ? new Types.ObjectId(term) : null },
-      ...(numeric ? [{ itemCount: Number(term) }] : []),
     ];
   }
 
@@ -94,7 +114,13 @@ export const getAdminOrders = asyncHandler(async (req: Request, res: Response) =
 
   const rows = orders.map((o) => ({
     ...o,
-    student: o.userId ? { name: (o.userId as unknown as { name: string }).name, email: (o.userId as unknown as { email: string }).email, studentId: (o.userId as unknown as { studentId: string }).studentId } : null,
+    student: o.userId
+      ? {
+          name: (o.userId as unknown as { name: string }).name,
+          email: (o.userId as unknown as { email: string }).email,
+          studentId: (o.userId as unknown as { studentId: string }).studentId,
+        }
+      : null,
   }));
 
   sendSuccess(res, { orders: rows, total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) });
@@ -162,9 +188,3 @@ export const reorder = asyncHandler(async (req: Request, res: Response) => {
   }
   sendSuccess(res, { message: added.length ? 'Items added to cart with current prices' : 'None of the items are available right now', added });
 });
-
-export const validateStatusParam = (status: string): string => {
-  const valid = Object.values(ORDER_STATUS);
-  if (!valid.includes(status as never)) throw new BadRequestError('Invalid order status');
-  return status;
-};

@@ -13,6 +13,8 @@ import {
   getOrderCounts,
   getMyActiveOrder,
   reorder,
+  counterCollectOrder,
+  updateKitchenPrepStatusController,
 } from '../controllers/order.controller';
 import { updateOrderStatusAdmin } from '../services/order.service';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -21,14 +23,16 @@ import { ROLE, ORDER_STATUS } from '../constants';
 
 const router = Router();
 
-// ---- Student orders ----
+// ---- Authenticated User ----
 router.use(requireAuth(), loadUser());
 
-// ---- Admin / staff ----
+// ---- Admin / Staff Counter & Kitchen Endpoints ----
 router.use('/admin', requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN, ROLE.STAFF));
 router.get('/admin', getAdminOrders);
 router.get('/admin/counts', getOrderCounts);
 router.get('/admin/kitchen', getKitchenBoard);
+router.post('/admin/counter-collect', counterCollectOrder);
+router.patch('/admin/:orderId/prep-status', updateKitchenPrepStatusController);
 
 const statusSchema = z.object({ status: z.enum(Object.values(ORDER_STATUS) as [string, ...string[]]) });
 router.patch(
@@ -46,7 +50,7 @@ router.patch(
   })
 );
 
-// ---- Student orders ----
+// ---- Customer Pre-Order Endpoints ----
 router.get('/mine', getMyOrders);
 router.get('/mine/active', getMyActiveOrder);
 router.get('/number/:orderNumber', getOrderByNumber);

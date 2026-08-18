@@ -15,7 +15,7 @@ import {
   ShopClosedError,
   ConflictError,
 } from '../utils/errors';
-import { generateOrderNumber } from '../utils/orderNumber';
+import { generateOrderIdentifiers } from '../utils/orderNumber';
 import { cache } from './cache.service';
 import { emit } from '../events';
 import { logger } from '../config/logger';
@@ -26,6 +26,8 @@ import { paymentService } from './payment.service';
 export interface CheckoutLine {
   productId: string;
   quantity: number;
+  addons?: string[];
+  instructions?: string;
 }
 
 interface CheckoutResult {
@@ -74,17 +76,24 @@ async function readSettings() {
 }
 
 /**
- * Initiates checkout:
+ * Initiates pre-order checkout:
  * - idempotent (checkoutRequestId)
  * - server-side prices + totals
- * - validates stock and reserves it atomically
- * - creates order in PAYMENT_PENDING
+ * - generates Order Number & Short Pickup Token (e.g. #A104)
+ * - generates QR Code Pass payload
+ * - reserves stock atomically
  * - creates payment via the payment provider abstraction
  */
-export async function initiateCheckout(userId: string, lines: CheckoutLine[], checkoutRequestId: string, couponCode?: string): Promise<CheckoutResult> {
+export async function initiateCheckout(
+  userId: string,
+  lines: CheckoutLine[],
+  checkoutRequestId: string,
+  couponCode?: string,
+  notes?: string
+): Promise<CheckoutResult> {
   await getShopOpenState();
 
-  const existing = await Order.findOne({ checkoutRequestId }).populate('items');
+  const existing = await Order.findOne({ checkoutRequestId });
   if (existing) {
     if (existing.status !== ORDER_STATUS.PAYMENT_PENDING) {
       throw new ConflictError('This checkout has already been processed');
@@ -101,7 +110,7 @@ export async function initiateCheckout(userId: string, lines: CheckoutLine[], ch
     };
   }
 
-  if (!lines || lines.length === 0) throw new BadRequestError('Cart is empty');
+  if (!lines || lines.length === 0) throw new BadRequestError('Pre-order list is empty');
 
   const productIds = lines.map((l) => l.productId);
   const products = await Product.find({ _id: { $in: productIds }, isActive: true }).lean();
@@ -127,6 +136,9 @@ export async function initiateCheckout(userId: string, lines: CheckoutLine[], ch
       subtotal: product.price * qty,
       isVeg: product.isVeg,
       imageUrl: product.imageUrl,
+      addons: line.addons || [],
+      instructions: line.instructions || '',
+      prepStatus: 'CONFIRMED' as const,
     });
   }
 
@@ -152,9 +164,23 @@ export async function initiateCheckout(userId: string, lines: CheckoutLine[], ch
   const serviceFee = settings.serviceFee;
   const total = Math.max(0, subtotal - discount + serviceFee);
 
-  const orderNumber = await generateOrderNumber();
+  const { orderNumber, tokenNumber } = await generateOrderIdentifiers();
+  const estimatedReadyMinutes = 15;
+  const estimatedReadyAt = new Date(Date.now() + estimatedReadyMinutes * 60 * 1000);
+
+  const qrCodeData = Buffer.from(
+    JSON.stringify({
+      ord: orderNumber,
+      tkn: tokenNumber,
+      uid: userId,
+      cnt: 'Counter 2 - Express Pick',
+      dt: new Date().toISOString(),
+    })
+  ).toString('base64');
+
   const order = await Order.create({
     orderNumber,
+    tokenNumber,
     userId,
     items,
     itemCount,
@@ -163,9 +189,15 @@ export async function initiateCheckout(userId: string, lines: CheckoutLine[], ch
     couponCode: couponCode?.trim().toUpperCase() || undefined,
     serviceFee,
     total,
+    collectionCounter: 'Counter 2 - Express Pick',
+    collectionStatus: 'PENDING',
+    qrCodeData,
     status: ORDER_STATUS.PAYMENT_PENDING,
     paymentStatus: PAYMENT_STATUS.PENDING,
     checkoutRequestId,
+    notes,
+    estimatedReadyMinutes,
+    estimatedReadyAt,
   });
 
   if (discount > 0) {
@@ -179,7 +211,7 @@ export async function initiateCheckout(userId: string, lines: CheckoutLine[], ch
     throw err;
   }
 
-  emit('orderCreated', { orderId: String(order._id), orderNumber, userId });
+  emit('orderCreated', { orderId: String(order._id), orderNumber, userId, tokenNumber });
 
   const paymentIntent = await paymentService.createPayment({
     orderId: String(order._id),
@@ -201,104 +233,29 @@ export async function initiateCheckout(userId: string, lines: CheckoutLine[], ch
   };
 }
 
-/**
- * Atomically reserves stock by incrementing reservedStock.
- * Uses an atomic update that only succeeds while available stock is sufficient.
- */
-export async function reserveStock(order: { _id: unknown; items: { productId: unknown; quantity: number }[] }): Promise<void> {
+export async function reserveStock(order: { items: { productId: unknown; quantity: number }[] }): Promise<void> {
   for (const item of order.items) {
-    const qty = Math.floor(item.quantity);
-    const result = await Product.updateOne(
-      { _id: item.productId, isActive: true, $expr: { $gte: [{ $subtract: ['$stock', '$reservedStock'] }, qty] } },
-      { $inc: { reservedStock: qty } }
+    const res = await Product.updateOne(
+      {
+        _id: item.productId,
+        isActive: true,
+        $expr: { $gte: [{ $subtract: ['$stock', '$reservedStock'] }, item.quantity] },
+      },
+      { $inc: { reservedStock: item.quantity } }
     );
-    if (result.modifiedCount === 0) {
-      throw new OutOfStockError('Some items just went out of stock');
+    if (res.modifiedCount === 0) {
+      throw new OutOfStockError('One or more items went out of stock during checkout');
     }
   }
 }
 
-/**
- * Confirms an order after payment success. Idempotent and Atomic.
- * Commits the reserved stock (decrement stock + reservedStock atomically).
- */
-export async function confirmOrder(orderId: string): Promise<IOrder> {
-  // ATOMIC UPDATE: Only confirm if currently PAYMENT_PENDING
-  const order = await Order.findOneAndUpdate(
-    { _id: orderId, status: ORDER_STATUS.PAYMENT_PENDING },
-    { $set: { status: ORDER_STATUS.ORDER_CONFIRMED, paymentStatus: PAYMENT_STATUS.SUCCESS } },
-    { new: true }
-  );
-
-  if (!order) {
-    // If not found in PAYMENT_PENDING, it might already be confirmed. Just return it if so.
-    const existing = await Order.findById(orderId);
-    if (!existing) throw new NotFoundError('Order not found');
-    const confirmedStates: string[] = [ORDER_STATUS.ORDER_CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.READY, ORDER_STATUS.COMPLETED];
-    if (confirmedStates.includes(existing.status)) {
-      return existing; // Already confirmed idempotently
-    }
-    throw new ConflictError('Order is not in a confirmable state');
-  }
-
-  // Stock commitment
+export async function commitStock(order: { items: { productId: unknown; quantity: number }[] }): Promise<void> {
   for (const item of order.items) {
-    const result = await Product.updateOne(
-      { _id: item.productId, reservedStock: { $gte: item.quantity } },
-      { $inc: { stock: -item.quantity, reservedStock: -item.quantity } }
+    await Product.updateOne(
+      { _id: item.productId },
+      { $inc: { stock: -item.quantity, reservedStock: -item.quantity, totalOrders: item.quantity } }
     );
-    if (result.modifiedCount === 0) {
-      logger.error('Failed to commit reserved stock', { orderId, productId: item.productId });
-      // Although atomic order status worked, stock commit failed (e.g., mismatch in reserved).
-      // This is a data consistency issue, but the order is safely confirmed.
-    }
   }
-
-  cache.delByPrefix('products');
-
-  emit('orderStatusChanged', {
-    orderId: String(order._id),
-    orderNumber: order.orderNumber,
-    userId: String(order.userId),
-    status: order.status,
-  });
-
-  await notifyUser({
-    userId: String(order.userId),
-    title: `Order #${order.orderNumber} confirmed`,
-    body: 'Payment successful. Your food is being prepared.',
-    type: 'order_confirmed',
-    data: { orderId: String(order._id), orderNumber: order.orderNumber },
-  });
-
-  await recordAudit({
-    actorId: String(order.userId),
-    action: 'ORDER_STATUS_CHANGED',
-    resource: 'order',
-    resourceId: String(order._id),
-    metadata: { to: ORDER_STATUS.ORDER_CONFIRMED, orderNumber: order.orderNumber },
-  });
-
-  await Cart.updateOne({ userId: order.userId }, { $set: { items: [] } });
-
-  return order;
-}
-
-/**
- * Marks a payment/order as failed and releases reserved stock.
- */
-export async function failOrder(orderId: string): Promise<IOrder> {
-  const order = await Order.findById(orderId);
-  if (!order) throw new NotFoundError('Order not found');
-  const pendingStates: OrderStatus[] = [ORDER_STATUS.PAYMENT_PENDING, ORDER_STATUS.PAYMENT_PROCESSING];
-  if (!pendingStates.includes(order.status)) return order;
-
-  await releaseStock(order);
-  order.status = ORDER_STATUS.PAYMENT_FAILED;
-  order.paymentStatus = PAYMENT_STATUS.FAILED;
-  await order.save();
-  cache.delByPrefix('products');
-  return order;
 }
 
 export async function releaseStock(order: { items: { productId: unknown; quantity: number }[] }): Promise<void> {
@@ -310,6 +267,33 @@ export async function releaseStock(order: { items: { productId: unknown; quantit
   }
 }
 
+export async function confirmOrder(orderId: string): Promise<IOrder> {
+  const order = await Order.findById(orderId);
+  if (!order) throw new NotFoundError('Order not found');
+
+  if (order.status === ORDER_STATUS.ORDER_CONFIRMED || order.paymentStatus === PAYMENT_STATUS.SUCCESS) {
+    return order;
+  }
+
+  await commitStock(order);
+  order.status = ORDER_STATUS.ORDER_CONFIRMED;
+  order.paymentStatus = PAYMENT_STATUS.SUCCESS;
+  await order.save();
+
+  cache.delByPrefix('products');
+  emit('orderConfirmed', { orderId: String(order._id), orderNumber: order.orderNumber, tokenNumber: order.tokenNumber });
+
+  await notifyUser({
+    userId: String(order.userId),
+    title: `Pre-Order #${order.tokenNumber} Confirmed!`,
+    body: `Your pre-order is confirmed. Pick up at Counter 2 when ready.`,
+    type: 'order_status',
+    data: { orderId: String(order._id), orderNumber: order.orderNumber, tokenNumber: order.tokenNumber },
+  });
+
+  return order;
+}
+
 export async function cancelOrder(orderId: string, userId: string, isStaffOrAdmin = false): Promise<IOrder> {
   const order = await Order.findById(orderId);
   if (!order) throw new NotFoundError('Order not found');
@@ -319,8 +303,7 @@ export async function cancelOrder(orderId: string, userId: string, isStaffOrAdmi
   if (!cancellable.includes(order.status)) {
     throw new ConflictError('This order cannot be cancelled at its current stage');
   }
-  if (order.paymentStatus === PAYMENT_STATUS.SUCCESS) {
-    // Attempt refund via provider abstraction (best effort, mock refunds instantly)
+  if (order.paymentStatus === PAYMENT_STATUS.SUCCESS && order.paymentId) {
     await paymentService.refundPayment(String(order.paymentId));
   }
 
@@ -339,11 +322,18 @@ export async function cancelOrder(orderId: string, userId: string, isStaffOrAdmi
   return order;
 }
 
-export function assertTransition(current: OrderStatus, next: OrderStatus): void {
-  const allowed = ALLOWED_ORDER_TRANSITIONS[current];
-  if (!allowed || !allowed.includes(next)) {
-    throw new AppError(409, 'CONFLICT', `Cannot change order from ${current} to ${next}`);
-  }
+export async function failOrder(orderId: string): Promise<IOrder> {
+  const order = await Order.findById(orderId);
+  if (!order) throw new NotFoundError('Order not found');
+
+  await releaseStock(order);
+  order.status = ORDER_STATUS.PAYMENT_FAILED;
+  order.paymentStatus = PAYMENT_STATUS.FAILED;
+  await order.save();
+
+  cache.delByPrefix('products');
+  emit('paymentFailed', { orderId: String(order._id), orderNumber: order.orderNumber, userId: String(order.userId) });
+  return order;
 }
 
 export function isConfirmedPaid(order: { status: OrderStatus; paymentStatus: string }): boolean {
@@ -351,13 +341,153 @@ export function isConfirmedPaid(order: { status: OrderStatus; paymentStatus: str
   return order.paymentStatus === PAYMENT_STATUS.SUCCESS && confirmedStates.includes(order.status);
 }
 
-export async function updateOrderStatusAdmin(orderId: string, next: OrderStatus, actorId: string, actorEmail?: string): Promise<IOrder> {
+export function assertTransition(current: OrderStatus, next: OrderStatus): void {
+  const allowed = ALLOWED_ORDER_TRANSITIONS[current];
+  if (!allowed || !allowed.includes(next)) {
+    throw new AppError(409, 'CONFLICT', `Cannot change order from ${current} to ${next}`);
+  }
+}
+
+/**
+ * Staff / Counter: Mark Order Collected via QR string or Token #A104
+ */
+export async function markOrderCollected(qrOrToken: string, staffId: string, staffEmail?: string) {
+  let order = await Order.findOne({
+    $or: [{ tokenNumber: qrOrToken.toUpperCase() }, { orderNumber: qrOrToken }, { qrCodeData: qrOrToken }],
+  });
+
+  if (!order) {
+    try {
+      const decoded = JSON.parse(Buffer.from(qrOrToken, 'base64').toString('utf8'));
+      if (decoded.ord) {
+        order = await Order.findOne({ orderNumber: decoded.ord });
+      }
+    } catch {
+      // not base64
+    }
+  }
+
+  if (!order) {
+    throw new NotFoundError('Order or Token not found');
+  }
+
+  if (order.collectionStatus === 'COLLECTED' || order.status === ORDER_STATUS.COMPLETED) {
+    return {
+      success: true,
+      alreadyCollected: true,
+      order,
+      message: `Already Collected at ${order.collectedAt?.toLocaleTimeString() || 'earlier'}`,
+    };
+  }
+
+  order.collectionStatus = 'COLLECTED';
+  order.status = ORDER_STATUS.COMPLETED;
+  order.completedAt = new Date();
+  order.collectedAt = new Date();
+  order.items = order.items.map((i) => ({ ...i, prepStatus: 'COLLECTED' }));
+  await order.save();
+
+  emit('orderStatusChanged', {
+    orderId: String(order._id),
+    orderNumber: order.orderNumber,
+    userId: String(order.userId),
+    status: ORDER_STATUS.COMPLETED,
+  });
+
+  await recordAudit({
+    actorId: staffId,
+    actorEmail: staffEmail,
+    action: 'ORDER_STATUS_CHANGED',
+    resource: 'Order',
+    resourceId: String(order._id),
+    metadata: { tokenNumber: order.tokenNumber, collected: true },
+  });
+
+  return {
+    success: true,
+    alreadyCollected: false,
+    order,
+    message: `Order #${order.tokenNumber} Collected Successfully!`,
+  };
+}
+
+/**
+ * Kitchen Status Transition: NEW ➔ PREPARING ➔ READY ➔ COLLECTED
+ */
+export async function updateKitchenPrepStatus(
+  orderId: string,
+  prepStatus: 'CONFIRMED' | 'PREPARING' | 'READY_FOR_COLLECTION' | 'COLLECTED',
+  staffId: string,
+  staffEmail?: string
+) {
+  const order = await Order.findById(orderId);
+  if (!order) throw new NotFoundError('Order not found');
+
+  let nextStatus: OrderStatus = order.status;
+  if (prepStatus === 'PREPARING') nextStatus = ORDER_STATUS.PREPARING;
+  if (prepStatus === 'READY_FOR_COLLECTION') nextStatus = ORDER_STATUS.READY;
+  if (prepStatus === 'COLLECTED') nextStatus = ORDER_STATUS.COMPLETED;
+
+  order.status = nextStatus;
+  order.collectionStatus = prepStatus === 'READY_FOR_COLLECTION' ? 'READY' : prepStatus === 'COLLECTED' ? 'COLLECTED' : 'PENDING';
+  order.items = order.items.map((i) => ({ ...i, prepStatus }));
+
+  if (prepStatus === 'COLLECTED') {
+    order.completedAt = new Date();
+    order.collectedAt = new Date();
+  }
+
+  await order.save();
+
+  // Send High Priority Notification when Ready
+  if (prepStatus === 'READY_FOR_COLLECTION') {
+    await notifyUser({
+      userId: String(order.userId),
+      title: `Order #${order.tokenNumber} is Ready!`,
+      body: `Your food is freshly prepared and waiting at ${order.collectionCounter || 'Counter 2'}.`,
+      type: 'order_status',
+      data: { orderId: String(order._id), orderNumber: order.orderNumber, tokenNumber: order.tokenNumber, status: 'READY' },
+    });
+  }
+
+  emit('orderStatusChanged', {
+    orderId: String(order._id),
+    orderNumber: order.orderNumber,
+    userId: String(order.userId),
+    status: nextStatus,
+  });
+
+  await recordAudit({
+    actorId: staffId,
+    actorEmail: staffEmail,
+    action: 'ORDER_STATUS_CHANGED',
+    resource: 'Order',
+    resourceId: String(order._id),
+    metadata: { tokenNumber: order.tokenNumber, prepStatus },
+  });
+
+  return order;
+}
+
+export async function updateOrderStatusAdmin(
+  orderId: string,
+  next: OrderStatus,
+  actorId: string,
+  actorEmail?: string
+): Promise<IOrder> {
   const order = await Order.findById(orderId);
   if (!order) throw new NotFoundError('Order not found');
   assertTransition(order.status, next);
 
   order.status = next;
-  if (next === ORDER_STATUS.COMPLETED) order.completedAt = new Date();
+  if (next === ORDER_STATUS.COMPLETED) {
+    order.completedAt = new Date();
+    order.collectionStatus = 'COLLECTED';
+    order.collectedAt = new Date();
+  }
+  if (next === ORDER_STATUS.READY) {
+    order.collectionStatus = 'READY';
+  }
   await order.save();
 
   cache.delByPrefix('products');
@@ -369,14 +499,14 @@ export async function updateOrderStatusAdmin(orderId: string, next: OrderStatus,
   });
 
   const messages: Record<string, string> = {
-    [ORDER_STATUS.PREPARING]: 'Your food is being prepared.',
-    [ORDER_STATUS.READY]: 'Your order is ready for pickup. Please collect your food.',
-    [ORDER_STATUS.COMPLETED]: 'Your order has been completed. Thank you!',
+    [ORDER_STATUS.PREPARING]: `Your order #${order.tokenNumber} is being prepared in the kitchen.`,
+    [ORDER_STATUS.READY]: `Your order #${order.tokenNumber} is READY for collection at ${order.collectionCounter}!`,
+    [ORDER_STATUS.COMPLETED]: `Your order #${order.tokenNumber} was collected. Enjoy your meal!`,
   };
   if (messages[next]) {
     await notifyUser({
       userId: String(order.userId),
-      title: `Order #${order.orderNumber}`,
+      title: `Order #${order.tokenNumber}`,
       body: messages[next],
       type: 'order_status',
       data: { orderId: String(order._id), orderNumber: order.orderNumber, status: next },
@@ -389,11 +519,7 @@ export async function updateOrderStatusAdmin(orderId: string, next: OrderStatus,
     action: 'ORDER_STATUS_CHANGED',
     resource: 'order',
     resourceId: orderId,
-    metadata: { from: order.status, to: next, orderNumber: order.orderNumber },
+    metadata: { from: order.status, to: next, orderNumber: order.orderNumber, tokenNumber: order.tokenNumber },
   });
   return order;
-}
-
-export function toObjectId(id: string): Types.ObjectId {
-  return new Types.ObjectId(id);
 }

@@ -1,11 +1,11 @@
 import { env } from '../config/env';
 
 /**
- * Generate a human-friendly, monotonic order number:
- * COL-YYYYMMDD-000124
- * Guaranteed unique via a daily sequence stored in the ShopSequence collection.
+ * Generate a human-friendly, monotonic order number and short pickup token:
+ * Order Number: ORD-YYYYMMDD-000124
+ * Token Number: A104, B208 (easy to announce/call at Counter 2)
  */
-export async function generateOrderNumber(date = new Date()): Promise<string> {
+export async function generateOrderIdentifiers(date = new Date()): Promise<{ orderNumber: string; tokenNumber: string }> {
   const { ShopSequence } = await import('../models/ShopSequence');
   const dayKey = formatDayKey(date);
   const doc = await ShopSequence.findOneAndUpdate(
@@ -13,13 +13,24 @@ export async function generateOrderNumber(date = new Date()): Promise<string> {
     { $inc: { value: 1 }, $setOnInsert: { key: `order:${dayKey}` } },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
-  const prefix = env.collegeName
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 3) || 'COL';
-  return `${prefix}-${dayKey}-${String(doc.value).padStart(6, '0')}`;
+
+  const seq = doc.value;
+  const prefix = 'ORD';
+  const orderNumber = `${prefix}-${dayKey}-${String(seq).padStart(6, '0')}`;
+
+  // Generate Token #A104 (cycles letters A-Z, 100-999)
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const letterIndex = Math.floor((seq - 1) / 100) % letters.length;
+  const letter = letters[letterIndex];
+  const numInSeries = 100 + ((seq - 1) % 100) + 1; // 101 .. 200
+  const tokenNumber = `${letter}${numInSeries}`;
+
+  return { orderNumber, tokenNumber };
+}
+
+export async function generateOrderNumber(date = new Date()): Promise<string> {
+  const { orderNumber } = await generateOrderIdentifiers(date);
+  return orderNumber;
 }
 
 export function formatDayKey(date: Date): string {

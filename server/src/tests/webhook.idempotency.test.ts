@@ -27,6 +27,14 @@ describe('Payment Webhook Idempotency', () => {
       }),
     };
 
+    vi.spyOn(Order, 'findOneAndUpdate').mockImplementation(async (query: any) => {
+      if (query.status === ORDER_STATUS.PAYMENT_PENDING && orderState.status === ORDER_STATUS.PAYMENT_PENDING) {
+        orderState.status = ORDER_STATUS.ORDER_CONFIRMED;
+        orderState.paymentStatus = PAYMENT_STATUS.SUCCESS;
+        return orderState as any;
+      }
+      return null; // For the second call, it's no longer PAYMENT_PENDING
+    });
     vi.spyOn(Order, 'findById').mockImplementation(async () => orderState as any);
     const updateProductSpy = vi.spyOn(Product, 'updateOne').mockResolvedValue({
       acknowledged: true,

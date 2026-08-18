@@ -12,6 +12,7 @@ export interface IUser {
   role: Role;
   isActive: boolean;
   approved: boolean;
+  avatarUrl?: string;
   lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -24,6 +25,7 @@ const userSchema = new Schema<IUser>(
     email: { type: String, required: true, trim: true, lowercase: true, unique: true, index: true },
     emailNormalized: { type: String, required: true, trim: true, lowercase: true, unique: true, index: true },
     phone: { type: String, trim: true, maxlength: 20 },
+    avatarUrl: { type: String },
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: Object.values(ROLE), default: ROLE.STUDENT, index: true },
     isActive: { type: Boolean, default: true, index: true },

@@ -11,6 +11,7 @@ export type ErrorCode =
   | 'ORDER_LIMIT_REACHED'
   | 'INVALID_PAYMENT'
   | 'PAYMENT_FAILED'
+  | 'PAYMENT_PROVIDER_NOT_CONFIGURED'
   | 'RATE_LIMITED'
   | 'INTERNAL_ERROR'
   | 'BAD_REQUEST';
@@ -26,6 +27,14 @@ export class AppError extends Error {
     this.statusCode = statusCode;
     this.code = code;
     this.details = details;
+  }
+}
+
+export class PaymentProviderNotConfiguredError extends AppError {
+  constructor(
+    message = 'Payment provider is not configured. Please configure Paytm credentials.'
+  ) {
+    super(503, 'PAYMENT_PROVIDER_NOT_CONFIGURED', message);
   }
 }
 

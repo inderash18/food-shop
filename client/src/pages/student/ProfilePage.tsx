@@ -1,145 +1,509 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { User, Mail, Shield, Award, Key, LogOut, CheckCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  User,
+  Mail,
+  Phone,
+  Ticket,
+  ShoppingBag,
+  Edit3,
+  CheckCircle2,
+  Lock,
+  Settings,
+  HelpCircle,
+  LogOut,
+  ChevronRight,
+  ShieldCheck,
+  Sparkles,
+  X,
+  Loader2,
+  Camera,
+  Trash2,
+  Upload,
+  AlertCircle,
+  Bell,
+} from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
-import { apiGet, apiPost } from '../../api/client';
-import { useNavigate } from 'react-router-dom';
+import { apiGet, apiPatch } from '../../api/client';
+import { formatINR } from '../../lib/format';
+import { toast } from '../../components/ui/Toast';
+import { UserAvatar, getInitials } from '../../components/ui/UserAvatar';
+import type { Order } from '../../lib/types';
+import { cn } from '../../lib/utils';
 
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  // Modals state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [editName, setEditName] = useState(user?.name || '');
+  const [editPhone, setEditPhone] = useState(user?.phone || '');
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
-  const { data: userStats } = useQuery({
-    queryKey: ['student-stats'],
-    queryFn: () => apiGet<{ stats: { orderCount: number; totalSpent: number } }>('/api/orders/me/stats').then((d) => d.stats),
-    enabled: Boolean(user),
+  // User Orders Query
+  const { data: ordersData } = useQuery({
+    queryKey: ['my-orders'],
+    queryFn: () => apiGet<{ orders: Order[] }>('/api/orders/mine'),
+    enabled: !!user,
   });
 
-  const passwordMutation = useMutation({
-    mutationFn: (body: { oldPassword: string; newPassword: string }) =>
-      apiPost('/api/auth/change-password', body),
-    onSuccess: () => {
-      setSuccessMessage('Password changed successfully!');
-      setErrorMessage('');
-      setOldPassword('');
-      setNewPassword('');
-      setTimeout(() => setSuccessMessage(''), 3000);
+  const orders = ordersData?.orders || [];
+  const activeOrdersCount = orders.filter((o) => o.status !== 'CANCELLED' && o.status !== 'COMPLETED').length;
+
+  // Update Profile Mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: (data: { name?: string; phone?: string; avatarUrl?: string | null }) =>
+      apiPatch<{ user: any }>('/api/auth/profile', data),
+    onSuccess: (res) => {
+      if (res?.user && user) {
+        setUser({ ...user, ...res.user });
+      }
+      toast.success('Profile updated successfully!');
+      setIsEditModalOpen(false);
+      setIsPhotoModalOpen(false);
+      setPreviewPhoto(null);
+      queryClient.invalidateQueries({ queryKey: ['auth-me'] });
     },
     onError: (err: any) => {
-      setErrorMessage(err.response?.data?.message || 'Failed to update password');
+      const msg = err.response?.data?.message || 'Failed to update profile';
+      setPhotoError(msg);
+      toast.error(msg);
     },
   });
+
+  // Client-side Image Compression
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhotoError(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Please select a valid image file (PNG, JPG, WebP).');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setPhotoError('Image is too large. Please select an image under 10MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxSize = 256;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setPreviewPhoto(compressedDataUrl);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSavePhoto = () => {
+    if (!previewPhoto) return;
+    updateProfileMutation.mutate({ avatarUrl: previewPhoto });
+  };
+
+  const handleRemovePhoto = () => {
+    updateProfileMutation.mutate({ avatarUrl: null });
+  };
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateProfileMutation.mutate({
+      name: editName.trim(),
+      phone: editPhone.trim(),
+    });
+  };
 
   const handleLogout = async () => {
     await logout();
+    toast.success('Logged out successfully');
     navigate('/login');
   };
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    passwordMutation.mutate({ oldPassword, newPassword });
-  };
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto text-center py-16 space-y-4">
+        <div className="w-16 h-16 bg-teal-50 text-[#389C9A] rounded-3xl flex items-center justify-center mx-auto">
+          <User className="h-8 w-8" />
+        </div>
+        <h2 className="text-lg font-bold text-darkText">Sign in to view your profile</h2>
+        <p className="text-xs font-normal text-gray-500">Access pre-orders, passes, and express pickup settings.</p>
+        <Link
+          to="/login"
+          className="inline-block bg-[#389C9A] hover:bg-[#2d817f] text-white font-semibold text-xs px-6 py-3 rounded-2xl shadow-teal"
+        >
+          Sign In / Register
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-12">
-      {/* Header Profile Card */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center gap-5">
-        <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-2xl font-black shadow-md">
-          {user?.name?.slice(0, 2).toUpperCase() || 'ST'}
+    <div className="max-w-xl mx-auto space-y-5 pb-24 px-1 sm:px-0 antialiased">
+      
+      {/* 1. Header Profile Card */}
+      <div className="bg-white rounded-[28px] border border-gray-100 shadow-card p-5 sm:p-6 text-center space-y-3 relative overflow-hidden">
+        
+        {/* User Photo / Initials with Camera Trigger */}
+        <div className="relative inline-block mx-auto">
+          <UserAvatar user={user} size="xl" className="ring-4 ring-teal-50" />
+          <button
+            onClick={() => {
+              setPreviewPhoto(null);
+              setPhotoError(null);
+              setIsPhotoModalOpen(true);
+            }}
+            className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#389C9A] hover:bg-[#2d817f] text-white flex items-center justify-center shadow-md border-2 border-white transition-transform active:scale-95"
+            title="Change Profile Photo"
+          >
+            <Camera className="w-4 h-4" />
+          </button>
         </div>
-        <div className="text-center sm:text-left space-y-1 flex-1">
-          <h1 className="text-xl font-bold text-slate-900">{user?.name}</h1>
-          <p className="text-xs text-slate-500 flex items-center justify-center sm:justify-start gap-1.5">
-            <Mail className="w-3.5 h-3.5" /> {user?.email}
-          </p>
-          <div className="flex items-center justify-center sm:justify-start gap-2 pt-1">
-            <span className="bg-blue-50 text-blue-700 text-[11px] font-mono font-bold px-2 py-0.5 rounded-md border border-blue-100">
-              ID: {user?.studentId}
+
+        {/* Name & Identity */}
+        <div className="space-y-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-darkText tracking-tight">{user.name}</h1>
+          <p className="text-xs text-gray-500 font-normal">{user.email}</p>
+          <div className="flex items-center justify-center gap-2 pt-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider bg-teal-50 text-[#389C9A] px-2.5 py-0.5 rounded-full border border-teal-200/60">
+              {user.role}
             </span>
-            <span className="bg-slate-100 text-slate-700 text-[11px] font-semibold px-2 py-0.5 rounded-md">
-              {user?.role}
+            <span className="text-[10px] font-mono font-medium text-gray-500 bg-secondaryBg px-2.5 py-0.5 rounded-full">
+              ID: {user.studentId}
             </span>
           </div>
         </div>
+
+        {/* Quick Edit Action */}
+        <div className="pt-2">
+          <button
+            onClick={() => {
+              setEditName(user.name);
+              setEditPhone(user.phone || '');
+              setIsEditModalOpen(true);
+            }}
+            className="px-5 py-2 rounded-xl bg-secondaryBg hover:bg-gray-100 text-darkText font-semibold text-xs shadow-3xs inline-flex items-center gap-1.5 transition-colors"
+          >
+            <Edit3 className="w-3.5 h-3.5" /> Edit Profile
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Grouped Section: Account */}
+      <div className="bg-white rounded-[26px] border border-gray-100 shadow-card p-4 space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-3 py-1">
+          Account
+        </p>
+
+        <Link
+          to="/orders"
+          className="flex items-center justify-between p-3 rounded-2xl hover:bg-secondaryBg transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-teal-50 text-[#389C9A] flex items-center justify-center">
+              <Ticket className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-medium text-darkText">My Pre-Orders & Passes</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {activeOrdersCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-[#FEDB71] text-darkText text-[10px] font-semibold tabular-nums">
+                {activeOrdersCount} Active
+              </span>
+            )}
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </div>
+        </Link>
+
+        <Link
+          to="/notifications"
+          className="flex items-center justify-between p-3 rounded-2xl hover:bg-secondaryBg transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-teal-50 text-[#389C9A] flex items-center justify-center">
+              <Bell className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-medium text-darkText">Notifications</span>
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+        </Link>
+      </div>
+
+      {/* 3. Grouped Section: Preferences & Security */}
+      <div className="bg-white rounded-[26px] border border-gray-100 shadow-card p-4 space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-3 py-1">
+          Security & Settings
+        </p>
+
+        <Link
+          to="/settings"
+          className="flex items-center justify-between p-3 rounded-2xl hover:bg-secondaryBg transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-secondaryBg text-gray-700 flex items-center justify-center">
+              <Settings className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-medium text-darkText">App Preferences</span>
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+        </Link>
+
+        <Link
+          to="/settings#security"
+          className="flex items-center justify-between p-3 rounded-2xl hover:bg-secondaryBg transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-secondaryBg text-gray-700 flex items-center justify-center">
+              <Lock className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-medium text-darkText">Change Password</span>
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+        </Link>
+      </div>
+
+      {/* 4. Grouped Section: Support & Logout */}
+      <div className="bg-white rounded-[26px] border border-gray-100 shadow-card p-4 space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-3 py-1">
+          Support
+        </p>
+
+        <Link
+          to="/help"
+          className="flex items-center justify-between p-3 rounded-2xl hover:bg-secondaryBg transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-secondaryBg text-gray-700 flex items-center justify-center">
+              <HelpCircle className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-medium text-darkText">How Pre-Orders Work & FAQ</span>
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+        </Link>
+
         <button
           onClick={handleLogout}
-          className="flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 font-bold bg-rose-50 hover:bg-rose-100 px-3.5 py-2 rounded-xl transition-colors"
+          className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-rose-50 text-rose-600 transition-colors"
         >
-          <LogOut className="w-3.5 h-3.5" /> Logout
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+              <LogOut className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-semibold">Log Out</span>
+          </div>
+          <ChevronRight className="w-4 h-4 text-rose-400" />
         </button>
       </div>
 
-      {/* Student Activity Stats */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-center">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Orders Placed</p>
-          <p className="text-2xl font-black text-blue-700 mt-1">{userStats?.orderCount ?? 0}</p>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-center">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Amount Spent</p>
-          <p className="text-2xl font-black text-emerald-600 mt-1">₹{userStats?.totalSpent ?? 0}</p>
-        </div>
-      </div>
-
-      {/* Security: Change Password */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-          <Key className="w-4 h-4 text-blue-600" />
-          <h2 className="text-sm font-bold text-slate-900">Security & Password</h2>
-        </div>
-
-        {successMessage && (
-          <div className="bg-emerald-50 text-emerald-800 p-3 rounded-xl text-xs font-semibold flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-emerald-600" />
-            {successMessage}
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="bg-rose-50 text-rose-800 p-3 rounded-xl text-xs font-semibold">
-            {errorMessage}
-          </div>
-        )}
-
-        <form onSubmit={handlePasswordSubmit} className="space-y-3 text-xs">
-          <div>
-            <label className="block text-slate-700 font-bold mb-1">Current Password</label>
-            <input
-              type="password"
-              required
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-              className="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-slate-700 font-bold mb-1">New Password (Min. 8 characters)</label>
-            <input
-              type="password"
-              required
-              minLength={8}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={passwordMutation.isPending}
-            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl shadow-sm transition-colors disabled:opacity-50"
+      {/* ========================================================================= */}
+      {/* 5. USER PROFILE PHOTO MODAL / DRAWER                                      */}
+      {/* ========================================================================= */}
+      {isPhotoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div
+            className="w-full max-w-sm bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl p-6 space-y-5"
+            onClick={(e) => e.stopPropagation()}
           >
-            {passwordMutation.isPending ? 'Updating...' : 'Change Password'}
-          </button>
-        </form>
-      </div>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-darkText">Profile Photo</h2>
+              <button
+                onClick={() => setIsPhotoModalOpen(false)}
+                className="p-1 rounded-full text-gray-400 hover:text-darkText"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Photo Preview / Initials */}
+            <div className="flex flex-col items-center justify-center py-2 space-y-3">
+              {previewPhoto ? (
+                <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-[#389C9A] shadow-md">
+                  <img src={previewPhoto} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <UserAvatar user={user} size="2xl" className="ring-4 ring-teal-100 shadow-md" />
+              )}
+              <p className="text-[11px] text-gray-400 text-center font-normal">
+                {previewPhoto
+                  ? 'Previewing selected image'
+                  : user?.avatarUrl
+                  ? 'Your current custom profile photo'
+                  : 'No photo uploaded. Using initials.'}
+              </p>
+            </div>
+
+            {photoError && (
+              <div className="p-3 bg-rose-50 text-rose-700 text-xs font-semibold rounded-xl flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {photoError}
+              </div>
+            )}
+
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {/* Actions */}
+            <div className="space-y-2 pt-1">
+              {previewPhoto ? (
+                <button
+                  onClick={handleSavePhoto}
+                  disabled={updateProfileMutation.isPending}
+                  className="w-full py-3 bg-[#389C9A] hover:bg-[#2d817f] text-white font-semibold text-xs rounded-2xl shadow-teal flex items-center justify-center gap-1.5 transition-transform active:scale-98"
+                >
+                  {updateProfileMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" /> Save & Use This Photo
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-3 bg-[#389C9A] hover:bg-[#2d817f] text-white font-semibold text-xs rounded-2xl shadow-teal flex items-center justify-center gap-1.5 transition-transform active:scale-98"
+                >
+                  <Upload className="w-4 h-4" /> Choose Photo from Device
+                </button>
+              )}
+
+              {user?.avatarUrl && !previewPhoto && (
+                <button
+                  onClick={handleRemovePhoto}
+                  disabled={updateProfileMutation.isPending}
+                  className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold text-xs rounded-2xl flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Remove Current Photo
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  setPreviewPhoto(null);
+                  setIsPhotoModalOpen(false);
+                }}
+                className="w-full py-2.5 text-gray-500 hover:text-darkText font-medium text-xs"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 6. EDIT PROFILE INFORMATION MODAL                                         */}
+      {/* ========================================================================= */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div
+            className="w-full max-w-md bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-darkText">Edit Profile</h2>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-1 rounded-full text-gray-400 hover:text-darkText"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase text-gray-500 tracking-wider">Full Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-secondaryBg rounded-xl text-xs font-medium text-darkText focus:bg-white focus:border-[#389C9A] focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase text-gray-500 tracking-wider">Phone Number</label>
+                <input
+                  type="tel"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="+91 98765 43210"
+                  className="w-full px-3.5 py-2.5 bg-secondaryBg rounded-xl text-xs font-medium text-darkText focus:bg-white focus:border-[#389C9A] focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1 opacity-70">
+                <label className="text-[11px] font-semibold uppercase text-gray-400 tracking-wider">Student ID (Immutable)</label>
+                <input
+                  type="text"
+                  value={user.studentId}
+                  disabled
+                  className="w-full px-3.5 py-2.5 bg-gray-100 rounded-xl text-xs font-mono font-medium text-gray-500 cursor-not-allowed"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="flex-1 py-2.5 bg-secondaryBg hover:bg-gray-100 text-darkText font-medium text-xs rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateProfileMutation.isPending}
+                  className="flex-1 py-2.5 bg-[#389C9A] hover:bg-[#2d817f] text-white font-semibold text-xs rounded-xl shadow-teal flex items-center justify-center gap-1.5"
+                >
+                  {updateProfileMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

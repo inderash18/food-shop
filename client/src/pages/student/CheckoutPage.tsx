@@ -1,20 +1,34 @@
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { ChevronLeft, Lock, Tag, Loader2 } from 'lucide-react';
-import { apiPost } from '../../api/client';
+import {
+  ChevronLeft,
+  Lock,
+  Tag,
+  Loader2,
+  MapPin,
+  Clock,
+  Sparkles,
+  CheckCircle2,
+  CreditCard,
+  ShieldCheck,
+  Building,
+  Utensils,
+  AlertCircle,
+} from 'lucide-react';
+import { apiPost, getErrorMessage } from '../../api/client';
 import { useCart } from '../../hooks/useCart';
 import { useAuthStore } from '../../stores/auth';
-import { getErrorMessage } from '../../api/client';
 import { formatINR } from '../../lib/format';
-import { Button } from '../../components/ui/Button';
-import { Skeleton } from '../../components/ui/Skeleton';
+import { toast } from '../../components/ui/Toast';
+import { cn } from '../../lib/utils';
 
 interface CheckoutResponse {
   checkout: {
     order: {
       _id: string;
       orderNumber: string;
+      tokenNumber?: string;
       items: { productNameSnapshot: string; quantity: number; subtotal: number; priceSnapshot: number }[];
       subtotal: number;
       discount: number;
@@ -29,167 +43,204 @@ interface CheckoutResponse {
 
 export function CheckoutPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthStore((s) => s.user);
-  const { cart, isLoading } = useCart();
-  const [coupon, setCoupon] = useState('');
-  const [couponError, setCouponError] = useState('');
-  const checkoutIdRef = useRef<string>(sessionStorage.getItem('checkoutRequestId') ?? `chk_${crypto.randomUUID()}`);
+  const { cart, itemCount, subtotal } = useCart();
+
+  const stateNotes = (location.state as any)?.notes || '';
+  const stateCoupon = (location.state as any)?.coupon || '';
+
+  const [cookingNotes, setCookingNotes] = useState(stateNotes);
+  const [selectedMethod, setSelectedMethod] = useState<'upi' | 'paytm' | 'card'>('upi');
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  const checkoutIdRef = useRef<string>(
+    sessionStorage.getItem('checkoutRequestId') ?? `chk_${crypto.randomUUID()}`
+  );
 
   const checkout = useMutation({
-    mutationFn: () =>
-      apiPost<CheckoutResponse>('/api/checkout', {
-        items: cart.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-        ...(coupon ? { couponCode: coupon } : {}),
+    mutationFn: () => {
+      setCheckoutError(null);
+      return apiPost<CheckoutResponse>('/api/checkout', {
+        items: cart.items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          addons: i.addons,
+          instructions: i.instructions,
+        })),
+        couponCode: stateCoupon || undefined,
+        notes: cookingNotes,
         checkoutRequestId: checkoutIdRef.current,
-      }),
+      });
+    },
     onSuccess: (data) => {
       sessionStorage.setItem('checkoutRequestId', checkoutIdRef.current);
       sessionStorage.setItem('paymentId', data.checkout.paymentIntent.paymentId);
-      if (data.checkout.paymentIntent.providerPaymentId) sessionStorage.setItem('providerPaymentId', data.checkout.paymentIntent.providerPaymentId);
+      if (data.checkout.paymentIntent.providerPaymentId) {
+        sessionStorage.setItem('providerPaymentId', data.checkout.paymentIntent.providerPaymentId);
+      }
       sessionStorage.setItem('paymentAmount', String(data.checkout.paymentIntent.amount));
       sessionStorage.setItem('orderId', data.checkout.order._id);
       sessionStorage.setItem('orderNumber', data.checkout.order.orderNumber);
-      
-      if (data.checkout.paymentIntent.provider === 'merchant-upi') {
-        sessionStorage.setItem('upiIntentUri', data.checkout.paymentIntent.metadata?.upiIntentUri || '');
-        sessionStorage.setItem('merchantUpiId', data.checkout.paymentIntent.metadata?.merchantUpiId || '');
-      }
 
       navigate('/payment', { replace: true });
     },
-    onError: (err) => {
+    onError: (err: any) => {
+      const code = err.response?.data?.error?.code;
       const message = getErrorMessage(err);
-      if (message.toLowerCase().includes('coupon')) setCouponError(message);
+
+      if (code === 'PAYMENT_PROVIDER_NOT_CONFIGURED' || err.response?.status === 503) {
+        setCheckoutError('Payment gateway is currently simulated/unconfigured.');
+      } else {
+        setCheckoutError(message);
+      }
+      toast.error(message);
     },
   });
 
-  if (!user) {
-    return (
-      <div className="text-center py-16">
-        <p className="text-gray-600 mb-4">Please log in to check out.</p>
-        <Button onClick={() => navigate('/login')}>Login</Button>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="max-w-lg mx-auto space-y-4">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-28 w-full" />
-      </div>
-    );
-  }
-
   if (cart.items.length === 0) {
     return (
-      <div className="text-center py-16">
-        <p className="text-gray-600 mb-4">Your cart is empty.</p>
-        <Button onClick={() => navigate('/menu')}>Browse Menu</Button>
+      <div className="max-w-md mx-auto my-12 p-8 bg-white rounded-[28px] border border-gray-100 text-center space-y-4 shadow-card">
+        <Utensils className="w-10 h-10 text-gray-300 mx-auto" />
+        <h2 className="text-base font-bold text-darkText">No items in your pre-order</h2>
+        <Link
+          to="/menu"
+          className="inline-flex px-5 py-2.5 bg-[#389C9A] text-white font-semibold text-xs rounded-xl shadow-teal"
+        >
+          Back to Food Menu
+        </Link>
       </div>
     );
   }
 
-  const unavailable = cart.items.filter((i) => !i.available);
-  const canCheckout = unavailable.length === 0 && !checkout.isPending;
-
   return (
-    <div className="max-w-lg mx-auto space-y-5">
-      <button onClick={() => navigate('/cart')} className="inline-flex items-center gap-1 text-sm font-medium text-gray-600">
-        <ChevronLeft className="h-4 w-4" /> Back to cart
-      </button>
-      <h1 className="text-xl font-bold text-gray-900">Checkout</h1>
+    <div className="max-w-3xl mx-auto space-y-6 pb-24 antialiased">
+      {/* Top Header */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => navigate('/cart')}
+          className="p-2 rounded-2xl bg-secondaryBg hover:bg-gray-100 text-darkText transition-colors shadow-3xs flex items-center gap-1 text-xs font-semibold"
+        >
+          <ChevronLeft className="w-4 h-4" /> Edit Pre-Order
+        </button>
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5">
-        <h2 className="font-bold text-gray-900 mb-4">Order summary</h2>
-        <div className="space-y-3">
-          {cart.items.map((item) => (
-            <div key={item.productId} className="flex justify-between text-[13px]">
-              <span className="text-gray-700">
-                {item.name} <span className="text-gray-400 font-medium ml-1">× {item.quantity}</span>
+        <span className="text-xs font-semibold text-[#389C9A] bg-teal-50 px-3 py-1 rounded-full border border-teal-200/60">
+          Fast-Track Express Collection
+        </span>
+      </div>
+
+      {/* Pickup Station Banner */}
+      <div className="bg-[#389C9A] rounded-[28px] p-6 text-white shadow-teal space-y-2">
+        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-semibold uppercase tracking-wider">
+          Pickup Station
+        </div>
+        <h1 className="text-2xl font-bold text-white tracking-tight">Counter 2 - Express Pick</h1>
+        <p className="text-xs text-white/90 font-normal">
+          Food is freshly cooked and assigned your Order Token upon payment confirmation.
+        </p>
+      </div>
+
+      {/* Selected Items Breakdown */}
+      <div className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-card space-y-4">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-darkText">
+            Pre-Order Items ({itemCount})
+          </h2>
+          <Link to="/cart" className="text-xs font-semibold text-[#389C9A] hover:underline">
+            Modify
+          </Link>
+        </div>
+
+        <div className="divide-y divide-gray-100">
+          {cart.items.map((i) => (
+            <div key={i.productId} className="py-2.5 flex items-center justify-between text-xs">
+              <span className="font-medium text-darkText">
+                <span className="font-semibold text-[#389C9A]">{i.quantity}x</span> {i.name}
               </span>
-              <span className="font-medium text-gray-900">{formatINR(item.price * item.quantity)}</span>
+              <span className="font-semibold text-darkText tabular-nums">{formatINR(i.price * i.quantity)}</span>
             </div>
           ))}
         </div>
-        <div className="border-t border-gray-100 mt-4 pt-4 space-y-2 text-[13px]">
-          <div className="flex justify-between text-gray-600">
-            <span>Item Total</span>
-            <span>{formatINR(cart.subtotal)}</span>
+
+        {cookingNotes && (
+          <div className="p-3 bg-secondaryBg rounded-xl text-xs text-gray-600 font-normal">
+            <span className="font-semibold text-darkText">Chef Notes:</span> {cookingNotes}
           </div>
-          {checkout.data ? (
-            <>
-              {checkout.data.checkout.order.discount > 0 && (
-                <div className="flex justify-between text-[#60b246] font-medium">
-                  <span>Discount ({checkout.data.checkout.order.couponCode})</span>
-                  <span>-{formatINR(checkout.data.checkout.order.discount)}</span>
-                </div>
+        )}
+      </div>
+
+      {/* Online Payment Method Selection */}
+      <div className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-card space-y-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-darkText">
+          Select Online Payment Method
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { id: 'upi', name: 'Instant UPI / QR', desc: 'Google Pay, PhonePe, Paytm' },
+            { id: 'paytm', name: 'Paytm Wallet / NetBanking', desc: 'Direct Wallet & Bank' },
+            { id: 'card', name: 'Campus Smart Card', desc: 'Student Prepaid Balance' },
+          ].map((method) => (
+            <button
+              key={method.id}
+              type="button"
+              onClick={() => setSelectedMethod(method.id as any)}
+              className={cn(
+                'p-4 rounded-2xl border text-left flex flex-col justify-between space-y-1 transition-all',
+                selectedMethod === method.id
+                  ? 'bg-teal-50 border-[#389C9A] text-darkText shadow-3xs'
+                  : 'bg-secondaryBg border-transparent text-gray-700 hover:bg-gray-100'
               )}
-              <div className="flex justify-between text-gray-600">
-                <span>Delivery Fee</span>
-                <span>{formatINR(checkout.data.checkout.order.serviceFee)}</span>
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-xs text-darkText">{method.name}</span>
+                <span
+                  className={cn(
+                    'w-3 h-3 rounded-full',
+                    selectedMethod === method.id ? 'bg-[#389C9A]' : 'border border-gray-300'
+                  )}
+                />
               </div>
+              <p className="text-[10px] text-gray-400 font-normal">{method.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Final Total & Place Order Action */}
+      <div className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-card space-y-4">
+        <div className="flex justify-between items-center text-sm font-bold text-darkText">
+          <span>Total Amount to Pay</span>
+          <span className="text-xl text-[#389C9A] tabular-nums">{formatINR(subtotal)}</span>
+        </div>
+
+        {checkoutError && (
+          <div className="p-3 bg-rose-50 text-rose-700 text-xs font-semibold rounded-xl border border-rose-200 flex items-center gap-1.5">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {checkoutError}
+          </div>
+        )}
+
+        <button
+          onClick={() => checkout.mutate()}
+          disabled={checkout.isPending}
+          className="w-full py-4 bg-[#FEDB71] hover:bg-[#fedb71]/90 text-darkText font-semibold text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50"
+        >
+          {checkout.isPending ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" /> Processing Pre-Order...
             </>
           ) : (
-            <div className="flex justify-between text-gray-600">
-              <span>Delivery Fee</span>
-              <span>Calculated below</span>
-            </div>
+            <>
+              <Lock className="w-4 h-4" /> Pay & Place Pre-Order • <span className="tabular-nums">{formatINR(subtotal)}</span>
+            </>
           )}
-          <div className="border-t-2 border-dashed border-gray-100 pt-3 mt-2 flex justify-between font-extrabold text-gray-900 items-center">
-            <span>TO PAY</span>
-            <span className="text-lg">{checkout.data ? formatINR(checkout.data.checkout.order.total) : formatINR(cart.subtotal)}</span>
-          </div>
-        </div>
+        </button>
+
+        <p className="text-[11px] text-gray-400 font-normal text-center flex items-center justify-center gap-1">
+          <ShieldCheck className="w-3.5 h-3.5 text-[#389C9A]" /> Instant Order Token & Digital Pass generated immediately.
+        </p>
       </div>
-
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <Tag className="h-4 w-4 text-gray-400" /> Coupon code
-        </h2>
-        <div className="flex gap-2">
-          <input
-            value={coupon}
-            onChange={(e) => {
-              setCoupon(e.target.value.toUpperCase());
-              setCouponError('');
-            }}
-            placeholder="e.g. WELCOME10"
-            className="flex-1 h-11 px-3.5 rounded-xl border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-          <Button variant="secondary" onClick={() => setCouponError('')}>
-            Apply
-          </Button>
-        </div>
-        {couponError && <p className="mt-2 text-xs text-red-600">{couponError}</p>}
-        {checkout.data?.checkout.order.discount && checkout.data.checkout.order.discount > 0 && (
-          <p className="mt-2 text-xs text-green-600">Coupon applied — you saved {formatINR(checkout.data.checkout.order.discount)}</p>
-        )}
-      </div>
-
-      {unavailable.length > 0 && (
-        <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-          Some items are out of stock. Remove them before checking out.
-        </div>
-      )}
-
-      <button
-        disabled={!canCheckout || checkout.isPending}
-        onClick={() => checkout.mutate()}
-        className="w-full bg-[#60b246] hover:bg-[#539e3d] text-white font-extrabold h-[56px] rounded-2xl shadow-[0_8px_20px_rgba(96,178,70,0.25)] flex items-center justify-center gap-2 transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
-      >
-        {checkout.isPending ? (
-          <>
-            <Loader2 className="h-5 w-5 animate-spin" /> Creating secure payment...
-          </>
-        ) : (
-          <>
-            <Lock className="h-4 w-4" /> Continue to Payment
-          </>
-        )}
-      </button>
-      <p className="text-center text-xs text-gray-400">You will be able to review the final amount before paying.</p>
     </div>
   );
 }

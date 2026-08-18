@@ -30,3 +30,9 @@ export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(72),
   newPassword: passwordSchema,
 });
+
+export const updateProfileSchema = z.object({
+  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100).optional(),
+  phone: z.string().trim().regex(/^[+\d\s-]{7,20}$/, 'Enter a valid phone number').optional().or(z.literal('')),
+  avatarUrl: z.string().max(2_000_000, 'Image is too large').optional().nullable(),
+});

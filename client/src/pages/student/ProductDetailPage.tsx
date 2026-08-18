@@ -5,6 +5,7 @@ import { apiGet } from '../../api/client';
 import { useCart } from '../../hooks/useCart';
 import { formatINR } from '../../lib/format';
 import { Button } from '../../components/ui/Button';
+import { ProductImage } from '../../components/ProductImage';
 import type { Product } from '../../lib/types';
 
 export function ProductDetailPage() {
@@ -41,13 +42,9 @@ export function ProductDetailPage() {
       </Link>
 
       <div className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
-        {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.name} className="w-full h-56 object-cover" />
-        ) : (
-          <div className="h-56 bg-gradient-to-br from-primary-50 to-blue-50 flex items-center justify-center text-6xl">
-            {product.isVeg ? '🍛' : '🍗'}
-          </div>
-        )}
+        <div className="h-60 w-full overflow-hidden">
+          <ProductImage src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+        </div>
         <div className="p-5 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div>

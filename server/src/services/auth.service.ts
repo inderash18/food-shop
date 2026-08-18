@@ -4,7 +4,7 @@ import { hashPassword, verifyPassword, generateId } from '../utils/crypto';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import { env } from '../config/env';
 import { AppError, ConflictError, UnauthorizedError, ForbiddenError } from '../utils/errors';
-import { ROLE, Role } from '../constants';
+import { ROLE, Role, AUDIT_ACTION } from '../constants';
 import { recordAudit } from './audit.service';
 import { logger } from '../config/logger';
 
@@ -150,6 +150,7 @@ export function publicUser(user: {
   name: string;
   email: string;
   phone?: string;
+  avatarUrl?: string;
   role: Role;
   isActive: boolean;
   approved: boolean;
@@ -161,6 +162,7 @@ export function publicUser(user: {
     name: user.name,
     email: user.email,
     phone: user.phone ?? undefined,
+    avatarUrl: user.avatarUrl ?? undefined,
     role: user.role,
     isActive: user.isActive,
     approved: user.approved,
@@ -187,4 +189,36 @@ function parseTtl(expiresIn: string): number {
 
 export function generateIdFor(name: string): string {
   return generateId(name.toLowerCase());
+}
+
+export async function updateUserProfile(userId: string, data: { name?: string; phone?: string; avatarUrl?: string | null }) {
+  const user = await User.findById(userId);
+  if (!user || !user.isActive) throw new UnauthorizedError('User not found or inactive');
+
+  if (data.name && data.name.trim().length >= 2) {
+    user.name = data.name.trim();
+  }
+  if (data.phone !== undefined) {
+    user.phone = data.phone ? data.phone.trim() : undefined;
+  }
+  if (data.avatarUrl !== undefined) {
+    user.avatarUrl = data.avatarUrl ? data.avatarUrl : undefined;
+  }
+
+  await user.save();
+  await recordAudit({ actorId: user.id, actorEmail: user.email, action: 'USER_UPDATED', resource: 'user', resourceId: user.id });
+  return publicUser(user);
+}
+
+export async function changeUserPassword(userId: string, currentPass: string, newPass: string) {
+  const user = await User.findById(userId).select('+passwordHash');
+  if (!user || !user.isActive) throw new UnauthorizedError('User not found or inactive');
+
+  const valid = await verifyPassword(currentPass, user.passwordHash);
+  if (!valid) throw new UnauthorizedError('Current password does not match');
+
+  user.passwordHash = await hashPassword(newPass);
+  await user.save();
+  await recordAudit({ actorId: user.id, actorEmail: user.email, action: AUDIT_ACTION.USER_UPDATED, resource: 'user', resourceId: user.id });
+  return { message: 'Password updated successfully' };
 }

@@ -23,6 +23,6 @@ router.get('/status/:paymentId', requireAuth(), getPaymentStatus);
 // Admin / specific roles for refund
 router.post('/:paymentId/refund', requireAuth(), requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN), requestRefund);
 
-router.post('/webhooks/merchant-upi', express.raw({ type: '*/*', limit: '256kb' }), webhookHandler('merchant-upi'));
+router.post('/webhooks/paytm', express.raw({ type: '*/*', limit: '256kb' }), webhookHandler('paytm'));
 
 export default router;

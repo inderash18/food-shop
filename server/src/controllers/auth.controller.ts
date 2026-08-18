@@ -8,6 +8,8 @@ import {
   logoutSession,
   createAdminAccount,
   publicUser,
+  updateUserProfile,
+  changeUserPassword,
 } from '../services/auth.service';
 import { env } from '../config/env';
 import { AppError } from '../utils/errors';
@@ -59,6 +61,20 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
 export const me = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) throw new AppError(401, 'UNAUTHORIZED', 'Not authenticated');
   sendSuccess(res, { user: publicUser(req.user as never) });
+});
+
+export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.userId) throw new AppError(401, 'UNAUTHORIZED', 'Not authenticated');
+  const body = req.validatedBody as { name?: string; phone?: string; avatarUrl?: string | null };
+  const user = await updateUserProfile(req.userId, body);
+  sendSuccess(res, { user });
+});
+
+export const changePassword = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.userId) throw new AppError(401, 'UNAUTHORIZED', 'Not authenticated');
+  const body = req.validatedBody as { currentPassword: string; newPassword: string };
+  const result = await changeUserPassword(req.userId, body.currentPassword, body.newPassword);
+  sendSuccess(res, result);
 });
 
 export const createAdmin = asyncHandler(async (req: Request, res: Response) => {

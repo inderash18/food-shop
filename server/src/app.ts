@@ -20,7 +20,9 @@ import reportsRoutes from './routes/reports.routes';
 import couponRoutes from './routes/coupon.routes';
 import settingsRoutes from './routes/settings.routes';
 import auditRoutes from './routes/audit.routes';
+import { bookingRouter } from './routes/booking.routes';
 import { registerProvider } from './services/payment.service';
+import { PaytmProvider } from './services/providers/paytm.provider';
 import { MerchantUPIProvider } from './services/providers/merchant-upi.provider';
 import { logger } from './config/logger';
 
@@ -43,7 +45,7 @@ export function createApp(): express.Application {
   app.use(cookieParser());
 
   // Capture raw body for webhook signature verification
-  app.use('/api/payments/webhook', express.raw({ type: '*/*', limit: '256kb' }), (req, _res, next) => {
+  app.use('/api/payments/webhooks/paytm', express.raw({ type: '*/*', limit: '256kb' }), (req, _res, next) => {
     (req as unknown as { rawBody?: string }).rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : undefined;
     next();
   });
@@ -62,6 +64,7 @@ export function createApp(): express.Application {
 
   app.use('/api/auth', authRoutes);
   app.use('/api', publicCatalogRoutes);
+  app.use('/api', bookingRouter);
   app.use(
     '/api/admin',
     adminCatalogRoutes,
@@ -82,6 +85,7 @@ export function createApp(): express.Application {
   app.use(errorHandler);
 
   // Register payment providers
+  registerProvider(new PaytmProvider());
   registerProvider(new MerchantUPIProvider());
 
   return app;

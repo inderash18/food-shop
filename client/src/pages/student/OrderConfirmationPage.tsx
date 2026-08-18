@@ -1,40 +1,36 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Clock, ChefHat, Package, ShoppingBag, ChevronRight } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import {
+  CheckCircle2,
+  Clock,
+  Utensils,
+  MapPin,
+  Sparkles,
+  ArrowRight,
+  QrCode,
+  Download,
+  Share2,
+  Ticket,
+  ChevronRight,
+} from 'lucide-react';
 import { apiGet } from '../../api/client';
-import { formatINR, formatDateTime } from '../../lib/format';
-import { Button } from '../../components/ui/Button';
-import { Skeleton } from '../../components/ui/Skeleton';
+import { formatINR } from '../../lib/format';
+import { DigitalOrderPassModal } from '../../components/ticket/DigitalTicketModal';
 import type { Order } from '../../lib/types';
-
-const steps: { status: Order['status']; label: string; icon: typeof Clock }[] = [
-  { status: 'ORDER_CONFIRMED', label: 'Order confirmed', icon: CheckCircle2 },
-  { status: 'PREPARING', label: 'Preparing', icon: ChefHat },
-  { status: 'READY', label: 'Ready for pickup', icon: Package },
-  { status: 'COMPLETED', label: 'Completed', icon: CheckCircle2 },
-];
-
-const rank: Record<Order['status'], number> = {
-  CART: 0,
-  PAYMENT_PENDING: 0,
-  PAYMENT_PROCESSING: 0,
-  PAYMENT_FAILED: 0,
-  ORDER_CONFIRMED: 1,
-  PREPARING: 2,
-  READY: 3,
-  COMPLETED: 4,
-  CANCELLED: -1,
-};
+import { toast } from '../../components/ui/Toast';
+import { cn } from '../../lib/utils';
 
 export function OrderConfirmationPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const orderId = sessionStorage.getItem('orderId') ?? searchParams.get('orderId') ?? '';
+  const [isPassModalOpen, setIsPassModalOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['order', orderId],
+    queryKey: ['order-confirmation', orderId],
     queryFn: () => apiGet<{ order: Order }>(`/api/orders/${orderId}`),
     enabled: !!orderId,
     refetchInterval: (query) => {
@@ -44,141 +40,167 @@ export function OrderConfirmationPage() {
     },
   });
 
-  useEffect(() => {
-    if (!orderId) navigate('/menu', { replace: true });
-    return () => {
-      sessionStorage.removeItem('orderId');
-      sessionStorage.removeItem('orderNumber');
-      sessionStorage.removeItem('checkoutRequestId');
-      sessionStorage.removeItem('paymentAmount');
-    };
-  }, [orderId, navigate]);
-
-  useEffect(() => {
-    if (data?.order?.status === 'COMPLETED' || data?.order?.status === 'CANCELLED') {
-      queryClient.invalidateQueries({ queryKey: ['orders', 'mine'] });
-    }
-  }, [data, queryClient]);
-
   const order = data?.order;
+
+  const token = order?.tokenNumber || order?.orderNumber || 'A104';
+  const qrData = order?.qrCodeData || token;
+  const isReady = order?.status === 'READY' || order?.collectionStatus === 'READY';
+  const isCollected = order?.status === 'COMPLETED' || order?.collectionStatus === 'COLLECTED';
+
+  const prepSteps = [
+    { label: 'Pre-Order Confirmed', done: true },
+    { label: 'Kitchen Preparing', done: order?.status === 'PREPARING' || isReady || isCollected, active: order?.status === 'PREPARING' },
+    { label: 'Ready at Counter 2', done: isReady || isCollected, active: isReady },
+    { label: 'Collected', done: isCollected },
+  ];
 
   if (isLoading || !order) {
     return (
-      <div className="max-w-md mx-auto space-y-4">
-        <Skeleton className="h-48 w-full" />
-        <Skeleton className="h-32 w-full" />
+      <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 space-y-3">
+        <div className="w-8 h-8 border-2 border-[#389C9A] border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-xs font-medium text-gray-400">Loading order confirmation & digital pass...</p>
       </div>
     );
   }
 
-  const currentRank = rank[order.status];
-  const confirmed = order.status !== 'PAYMENT_FAILED' && order.status !== 'CANCELLED' && currentRank >= 1;
-
   return (
-    <div className="max-w-md mx-auto space-y-5 pt-4">
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 text-center space-y-3">
-        {confirmed ? (
-          <div className="mx-auto h-16 w-16 rounded-full bg-green-50 flex items-center justify-center">
-            <CheckCircle2 className="h-9 w-9 text-green-600" />
-          </div>
-        ) : (
-          <div className="mx-auto h-16 w-16 rounded-full bg-amber-50 flex items-center justify-center">
-            <Clock className="h-9 w-9 text-amber-500" />
-          </div>
-        )}
-        <h1 className="text-xl font-bold text-gray-900">
-          {confirmed ? 'Order placed!' : order.status === 'CANCELLED' ? 'Order cancelled' : 'Payment pending'}
-        </h1>
-        <p className="text-sm text-gray-500">
-          {order.status === 'CANCELLED'
-            ? 'This order was cancelled. If you were charged, the refund will be processed.'
-            : confirmed
-              ? `Thanks ${order.student?.name?.split(' ')[0] ?? ''}! Your order has been confirmed.`
-              : 'We are confirming your payment. Please wait a moment.'}
-        </p>
-        <div className="inline-flex items-center gap-2 rounded-2xl bg-gray-50 px-5 py-3">
-          <ShoppingBag className="h-4 w-4 text-gray-400" />
-          <span className="text-sm text-gray-600">Order</span>
-          <span className="font-bold text-gray-900">#{order.orderNumber}</span>
+    <div className="max-w-xl mx-auto space-y-6 pb-24 pt-2 antialiased">
+      
+      {/* Top Success Banner */}
+      <div className="bg-[#389C9A] text-white rounded-[28px] p-6 sm:p-8 text-center space-y-3 shadow-teal relative overflow-hidden">
+        <div className="w-14 h-14 rounded-full bg-white/20 text-white flex items-center justify-center mx-auto shadow-sm">
+          <CheckCircle2 className="w-8 h-8 text-[#FEDB71]" />
         </div>
-        <p className="text-2xl font-bold text-gray-900">
-          {formatINR(order.total)}
-          {order.paymentStatus === 'SUCCESS' && <span className="text-xs font-medium text-green-600 ml-2">Paid</span>}
-        </p>
-        {order.estimatedReadyAt && (
-          <p className="text-sm text-gray-500">
-            Estimated ready by <span className="font-semibold text-gray-700">{formatDateTime(order.estimatedReadyAt)}</span>
+
+        <div className="space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-teal-100 bg-white/15 px-3 py-0.5 rounded-full">
+            Payment Verified Online
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Pre-Order Confirmed!</h1>
+          <p className="text-xs text-white/90 font-normal">
+            Chefs are preparing your meal. Pick up at Counter 2 when announced.
           </p>
-        )}
+        </div>
+
+        {/* Big Order Token #A104 */}
+        <div className="p-4 bg-white/15 backdrop-blur-md rounded-2xl border border-white/20 max-w-xs mx-auto">
+          <p className="text-[10px] uppercase font-semibold text-teal-100 tracking-wider">Your Pickup Token Number</p>
+          <h2 className="text-4xl sm:text-5xl font-bold text-[#FEDB71] font-mono mt-0.5 tracking-tight tabular-nums">
+            #{token}
+          </h2>
+        </div>
       </div>
 
-      {confirmed && (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
-          <h2 className="font-semibold text-gray-900 mb-4 text-sm uppercase tracking-wide">Order status</h2>
-          <ol className="space-y-4">
-            {steps.map((step, i) => {
-              const reached = currentRank > i;
-              const current = currentRank === i + 1;
-              const done = currentRank >= i + 1;
-              return (
-                <li key={step.status} className="flex items-center gap-3">
-                  <span
-                    className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${
-                      done ? 'bg-green-500 text-white' : current ? 'bg-primary-100 text-primary-600' : 'bg-gray-100 text-gray-400'
-                    }`}
-                  >
-                    <step.icon className="h-4 w-4" />
-                  </span>
-                  <div className="flex-1">
-                    <p className={`text-sm font-medium ${done ? 'text-gray-900' : current ? 'text-primary-700' : 'text-gray-400'}`}>
-                      {step.label}
-                    </p>
-                  </div>
-                  {reached && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-      )}
-
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 space-y-2.5">
-        {order.items.map((item) => (
-          <div key={item.productId} className="flex justify-between text-sm">
-            <span className="text-gray-700">
-              {item.productNameSnapshot} <span className="text-gray-400">× {item.quantity}</span>
-            </span>
-            <span className="font-medium text-gray-900">{formatINR(item.subtotal)}</span>
+      {/* Embedded Digital QR Code Box */}
+      <div className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-card text-center space-y-4">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div className="text-left">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-darkText">Digital Order Pass</h3>
+            <p className="text-[11px] text-gray-400 font-normal">Scan at Counter 2 for 10-second pickup</p>
           </div>
-        ))}
-        <div className="border-t border-gray-100 pt-2.5 space-y-1.5 text-sm">
-          {order.discount > 0 && (
-            <div className="flex justify-between text-green-600">
-              <span>Discount</span>
-              <span>-{formatINR(order.discount)}</span>
+          <span className="text-xs font-mono font-medium text-gray-400">REF: {order.orderNumber}</span>
+        </div>
+
+        {/* QR Presentation */}
+        <div className="p-4 bg-secondaryBg rounded-2xl border border-gray-200/80 inline-block mx-auto shadow-3xs">
+          <QRCodeSVG value={qrData} size={150} level="H" fgColor="#1D1D1D" />
+        </div>
+
+        <div className="flex items-center justify-center gap-2 pt-1">
+          <button
+            onClick={() => setIsPassModalOpen(true)}
+            className="px-6 py-2.5 bg-[#FEDB71] hover:bg-[#fedb71]/90 text-darkText font-semibold text-xs rounded-2xl shadow-3xs flex items-center gap-1.5 transition-transform active:scale-95"
+          >
+            <QrCode className="w-4 h-4" /> Open Fullscreen Pass
+          </button>
+        </div>
+      </div>
+
+      {/* Live Preparation Timeline */}
+      <div className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-card space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-darkText flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 text-[#389C9A]" /> Live Preparation Status
+          </h3>
+          <span className="text-xs font-semibold text-[#389C9A] tabular-nums">
+            Est. ~{order.estimatedReadyMinutes || 12} mins
+          </span>
+        </div>
+
+        <div className="grid grid-cols-4 gap-1.5 pt-1">
+          {prepSteps.map((s, idx) => (
+            <div key={idx} className="flex flex-col items-center text-center space-y-1.5">
+              <div
+                className={cn(
+                  'w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all',
+                  s.done
+                    ? 'bg-[#389C9A] text-white shadow-teal'
+                    : s.active
+                    ? 'bg-[#FEDB71] text-darkText animate-pulse'
+                    : 'bg-secondaryBg text-gray-400 font-normal'
+                )}
+              >
+                {s.done ? '✓' : idx + 1}
+              </div>
+              <span
+                className={cn(
+                  'text-[10px] leading-tight font-medium',
+                  s.done ? 'text-darkText font-semibold' : 'text-gray-400'
+                )}
+              >
+                {s.label}
+              </span>
             </div>
-          )}
-          <div className="flex justify-between text-gray-600">
-            <span>Service fee</span>
-            <span>{formatINR(order.serviceFee)}</span>
-          </div>
-          <div className="flex justify-between font-bold text-gray-900">
-            <span>Total</span>
-            <span>{formatINR(order.total)}</span>
-          </div>
+          ))}
         </div>
       </div>
 
-      <div className="space-y-3">
-        <Button size="lg" className="w-full" onClick={() => navigate('/orders')}>
-          Track my order <ChevronRight className="h-4 w-4" />
-        </Button>
-        <Link to="/menu">
-          <Button variant="secondary" size="lg" className="w-full">
-            Keep browsing
-          </Button>
+      {/* Food Items Summary */}
+      <div className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-card space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-darkText flex items-center gap-1.5">
+          <Utensils className="w-3.5 h-3.5 text-[#389C9A]" /> Pre-Ordered Dishes
+        </h3>
+
+        <div className="divide-y divide-gray-100">
+          {order.items.map((item, idx) => (
+            <div key={idx} className="py-2 flex items-center justify-between text-xs font-normal">
+              <span className="text-darkText">
+                <span className="font-semibold text-[#389C9A]">{item.quantity}x</span>{' '}
+                {item.productNameSnapshot}
+              </span>
+              <span className="font-semibold text-darkText tabular-nums">{formatINR(item.subtotal)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+          <span className="font-medium text-gray-500">Total Paid</span>
+          <span className="text-base font-bold text-[#389C9A] tabular-nums">{formatINR(order.total)}</span>
+        </div>
+      </div>
+
+      {/* Return to Food Menu */}
+      <div className="flex gap-3">
+        <Link
+          to="/menu"
+          className="flex-1 py-3.5 bg-secondaryBg hover:bg-gray-100 text-darkText font-semibold text-xs rounded-2xl shadow-3xs text-center flex items-center justify-center gap-1.5 transition-colors"
+        >
+          Back to Food Menu
+        </Link>
+        <Link
+          to="/orders"
+          className="flex-1 py-3.5 bg-[#389C9A] hover:bg-[#2d817f] text-white font-semibold text-xs rounded-2xl shadow-teal text-center flex items-center justify-center gap-1.5 transition-transform active:scale-95"
+        >
+          View in My Orders <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
+
+      {/* Fullscreen Modal Pass */}
+      <DigitalOrderPassModal
+        booking={order}
+        isOpen={isPassModalOpen}
+        onClose={() => setIsPassModalOpen(false)}
+      />
     </div>
   );
 }

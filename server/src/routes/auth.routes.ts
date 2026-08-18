@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { register, login, refresh, logout, me, createAdmin } from '../controllers/auth.controller';
+import { register, login, refresh, logout, me, createAdmin, updateProfile, changePassword } from '../controllers/auth.controller';
 import { validate } from '../middlewares/validate';
-import { registerSchema, loginSchema, createAdminSchema } from '../validators/auth.schema';
+import { registerSchema, loginSchema, createAdminSchema, updateProfileSchema, changePasswordSchema } from '../validators/auth.schema';
 import { requireAuth } from '../middlewares/auth';
 import { loadUser } from '../middlewares/loadUser';
 import { requireRole } from '../middlewares/auth';
@@ -26,6 +26,8 @@ router.post(
 router.post('/refresh', refresh);
 router.post('/logout', logout);
 router.get('/me', requireAuth(), loadUser(), me);
+router.patch('/profile', requireAuth(), loadUser(), validate(updateProfileSchema), updateProfile);
+router.post('/change-password', requireAuth(), loadUser(), validate(changePasswordSchema), changePassword);
 
 router.post(
   '/admin/create',

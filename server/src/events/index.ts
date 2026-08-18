@@ -1,7 +1,8 @@
 import { EventEmitter } from 'events';
 
 export interface AppEventMap {
-  orderCreated: { orderId: string; orderNumber: string; userId: string };
+  orderCreated: { orderId: string; orderNumber: string; userId: string; tokenNumber?: string };
+  orderConfirmed: { orderId: string; orderNumber: string; tokenNumber?: string };
   orderStatusChanged: { orderId: string; orderNumber: string; userId: string; status: string };
   paymentSucceeded: { orderId: string; orderNumber: string; userId: string };
   paymentFailed: { orderId: string; orderNumber: string; userId: string };
