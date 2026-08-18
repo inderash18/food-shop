@@ -80,6 +80,7 @@ export function RegisterPage() {
           <Input
             label="Password"
             type="password"
+            autoComplete="new-password"
             placeholder="At least 8 characters"
             error={errors.password?.message}
             {...register('password', { required: 'Password is required', minLength: { value: 8, message: 'Password must be at least 8 characters' } })}
@@ -87,6 +88,7 @@ export function RegisterPage() {
           <Input
             label="Confirm password"
             type="password"
+            autoComplete="new-password"
             placeholder="Repeat your password"
             error={errors.confirmPassword?.message}
             {...register('confirmPassword', {
