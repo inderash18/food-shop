@@ -1,4 +1,5 @@
 import { env } from '../config/env';
+import { ShopSequence } from '../models/ShopSequence';
 
 /**
  * Generate a human-friendly, monotonic order number and short pickup token:
@@ -6,7 +7,6 @@ import { env } from '../config/env';
  * Token Number: A104, B208 (easy to announce/call at Counter 2)
  */
 export async function generateOrderIdentifiers(date = new Date()): Promise<{ orderNumber: string; tokenNumber: string }> {
-  const { ShopSequence } = await import('../models/ShopSequence');
   const dayKey = formatDayKey(date);
   const doc = await ShopSequence.findOneAndUpdate(
     { key: `order:${dayKey}` },

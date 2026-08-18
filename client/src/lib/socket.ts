@@ -6,6 +6,11 @@ let globalSocket: Socket | null = null;
 export function getSocket(): Socket | null {
   if (globalSocket) return globalSocket;
 
+  // Vercel serverless functions do not support WebSockets
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    return null;
+  }
+
   const token = getAccessToken();
   if (!token) return null;
 

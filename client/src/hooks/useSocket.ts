@@ -21,7 +21,10 @@ export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    // Vercel serverless functions do not support WebSockets
+    if (!user || (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'))) {
+      return;
+    }
 
     const socket = io(import.meta.env.VITE_API_URL ?? '', {
       auth: { token: getAccessToken() },
