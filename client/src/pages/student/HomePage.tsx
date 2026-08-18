@@ -1,195 +1,150 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { ArrowRight, MoreHorizontal, ArrowUp } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { apiGet } from '../../api/client';
 import type { Category, Product } from '../../lib/types';
-import { cn } from '../../lib/format';
+import { ProductCard } from '../../components/ProductCard';
 
 export function HomePage() {
+  const navigate = useNavigate();
+
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: () => apiGet<{ categories: Category[] }>('/api/categories'),
     staleTime: 60_000,
   });
 
-  const { data: popular, isLoading: loadingPopular } = useQuery({
+  const { data: topPicks, isLoading: loadingTopPicks } = useQuery({
     queryKey: ['products', { sort: 'popular', limit: 8 }],
     queryFn: () => apiGet<{ products: Product[] }>('/api/products?sort=popular&limit=8&inStockOnly=false'),
     staleTime: 30_000,
   });
 
-  const { data: bestSellers, isLoading: loadingBestSellers } = useQuery({
-    queryKey: ['products', { sort: 'popular', limit: 4, offset: 8 }],
-    queryFn: () => apiGet<{ products: Product[] }>('/api/products?sort=popular&limit=4&offset=8&inStockOnly=false'),
-    staleTime: 30_000,
-  });
-
-  const { data: promos, isLoading: loadingPromos } = useQuery({
-    queryKey: ['products', { sort: 'price_asc', limit: 4 }],
-    queryFn: () => apiGet<{ products: Product[] }>('/api/products?sort=price_asc&limit=4&inStockOnly=false'),
+  const { data: recommended, isLoading: loadingRecommended } = useQuery({
+    queryKey: ['products', { sort: 'newest', limit: 8 }],
+    queryFn: () => apiGet<{ products: Product[] }>('/api/products?sort=newest&limit=8&inStockOnly=false'),
     staleTime: 30_000,
   });
 
   return (
-    <div className="space-y-10 py-6">
-      {/* Category Section */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Category</h2>
-          <Link to="/menu" className="text-sm font-semibold text-yellow-500 hover:text-yellow-600 flex items-center">
-            View all &gt;
-          </Link>
+    <div className="space-y-8 pb-8 md:px-0 px-1 pt-1">
+      
+      {/* Mobile Search Bar (Hidden on desktop since it's in header) */}
+      <div className="md:hidden sticky top-[64px] z-10 bg-[#f8f9fa] pt-2 pb-4 px-3 -mx-4 shadow-[0_10px_10px_-10px_rgba(0,0,0,0.05)]">
+        <div 
+          className="relative bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden cursor-text h-[50px] flex items-center"
+          onClick={() => navigate('/menu')}
+        >
+          <Search className="absolute left-4 text-gray-400 h-5 w-5" />
+          <div className="pl-12 pr-4 text-gray-400 font-medium text-[15px] flex items-center w-full">
+            Search for restaurants, items or more
+            <div className="ml-auto flex gap-3 items-center">
+              <div className="w-[1px] h-5 bg-gray-200"></div>
+              <span className="text-primary-500 font-bold text-[10px] bg-primary-50 px-2 py-1 rounded">PRO</span>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none">
+      </div>
+
+      {/* Promotional Hero */}
+      <section className="px-3 md:px-0">
+        <div className="bg-gradient-to-r from-primary-500 to-[#ff7e5f] rounded-3xl p-6 text-white shadow-md relative overflow-hidden flex flex-col justify-between h-[160px] md:h-[200px]">
+          <div className="relative z-10 max-w-[70%]">
+            <h2 className="font-extrabold text-2xl md:text-3xl leading-tight mb-2 tracking-tight drop-shadow-sm">
+              Craving something delicious?
+            </h2>
+            <p className="font-medium text-white/90 text-sm mb-4 drop-shadow-sm">
+              Fresh food from your campus favorites, delivered fast.
+            </p>
+          </div>
+          <button onClick={() => navigate('/menu')} className="bg-white text-primary-600 font-bold text-sm px-6 py-2.5 rounded-full w-max shadow-sm relative z-10 active:scale-95 transition-transform">
+            Order Now
+          </button>
+          
+          <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-20 pointer-events-none">
+            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full object-cover">
+              <path fill="#FFFFFF" d="M42.7,-73.4C55.9,-65.8,67.6,-54.6,76.5,-41.4C85.4,-28.1,91.5,-12.8,89.5,1.7C87.4,16.2,77.3,29.9,67.3,42.5C57.3,55.1,47.4,66.6,34.8,74.5C22.2,82.4,6.9,86.7,-7.8,86.2C-22.5,85.6,-36.7,80.1,-49.5,71.5C-62.3,62.8,-73.6,50.9,-81.4,36.5C-89.2,22,-93.4,4.9,-91.1,-11.4C-88.8,-27.7,-79.9,-43.3,-67.6,-53.4C-55.3,-63.5,-39.6,-68.2,-25,-71.4C-10.4,-74.5,3.1,-76.1,17.2,-74C31.3,-71.8,42.7,-73.4,42.7,-73.4Z" transform="translate(100 100) scale(1.1)" />
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      {/* Categories (What's on your mind?) */}
+      <section className="px-3 md:px-0">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">What's on your mind?</h2>
+        </div>
+        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none snap-x px-1">
           {(categories?.categories ?? []).map((c) => (
             <Link
               key={c._id}
               to={`/menu?category=${c.slug}`}
-              className="shrink-0 flex flex-col items-center justify-center w-28 h-28 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group"
+              className="shrink-0 flex flex-col items-center gap-2 group snap-start"
             >
-              <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">
-                {emojiForCategory(c.slug)}
-              </span>
-              <span className="text-sm font-medium text-gray-500 group-hover:text-gray-900 transition-colors">{c.name}</span>
+              <div className="w-[84px] h-[84px] bg-white rounded-full flex items-center justify-center shadow-[0_2px_12px_rgba(0,0,0,0.06)] overflow-hidden group-active:scale-95 transition-transform border border-gray-100">
+                <span className="text-[40px] drop-shadow-sm group-hover:scale-110 transition-transform">
+                  {emojiForCategory(c.slug)}
+                </span>
+              </div>
+              <span className="text-[13px] font-semibold text-gray-700 tracking-tight">{c.name}</span>
             </Link>
           ))}
-          {/* Add some dummy categories to match the design length if needed */}
+          {/* Fallback dummy categories to show scroll */}
           {!categories?.categories?.length && Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="shrink-0 flex flex-col items-center justify-center w-28 h-28 bg-white rounded-3xl border border-gray-100 shadow-sm">
-              <span className="text-3xl mb-2">🍔</span>
-              <span className="text-sm font-medium text-gray-500">Burger</span>
+            <div key={i} className="shrink-0 flex flex-col items-center gap-2">
+              <div className="w-[84px] h-[84px] bg-white rounded-full flex items-center justify-center shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-gray-100">
+                <span className="text-[40px] drop-shadow-sm">🍔</span>
+              </div>
+              <span className="text-[13px] font-semibold text-gray-700">Burger</span>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Popular This Week Section */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Popular This Week</h2>
-          <Link to="/menu" className="text-sm font-semibold text-yellow-500 hover:text-yellow-600 flex items-center">
-            View all &gt;
-          </Link>
+      {/* Top Restaurants / Popular */}
+      <section className="px-3 md:px-0">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-[22px] font-extrabold text-gray-900 tracking-tight">Top picks for you</h2>
         </div>
         
-        <div className="flex gap-6 overflow-x-auto pb-4 pt-2 -mt-2 px-1 scrollbar-none">
-          {loadingPopular ? (
-            <div className="flex gap-6">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="w-80 h-40 bg-gray-200 rounded-3xl animate-pulse shrink-0"></div>
-              ))}
-            </div>
-          ) : (
-            (popular?.products ?? []).slice(0, 5).map((p, index) => (
-              <div 
-                key={p._id} 
-                className={cn(
-                  "shrink-0 w-[340px] bg-white rounded-3xl p-5 flex items-center gap-5 transition-all cursor-pointer",
-                  index === 1 
-                    ? "border-2 border-yellow-400 shadow-lg shadow-yellow-400/20 scale-[1.02]" 
-                    : "border border-gray-100 shadow-sm hover:border-yellow-200"
-                )}
-              >
-                <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 bg-gray-50">
-                  <img src={p.imageUrl || 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=300&q=80'} alt={p.name} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-bold text-gray-900 truncate pr-2">{p.name}</h3>
-                    <button className="text-gray-400 hover:text-gray-600"><MoreHorizontal className="h-5 w-5" /></button>
-                  </div>
-                  <div className="font-bold text-gray-900 mt-1">
-                    <span className="text-yellow-500">$</span>{p.price.toFixed(2)}
-                  </div>
-                  <div className="flex items-center gap-1 mt-2 text-xs text-gray-500 font-medium">
-                    <span className="text-yellow-400">★</span> 5.0
-                    <span className="mx-1">•</span>
-                    1k+ User Reviews
-                  </div>
-                  <p className="text-xs text-gray-400 mt-2 line-clamp-2 leading-relaxed">
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor...
-                  </p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        {loadingTopPicks ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="w-full h-64 bg-gray-200 rounded-3xl animate-pulse"></div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {(topPicks?.products ?? []).slice(0, 4).map((p) => (
+              <ProductCard key={p._id} product={p} />
+            ))}
+          </div>
+        )}
       </section>
 
-      {/* Best Seller Section */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Best Seller</h2>
-          <Link to="/menu" className="text-sm font-semibold text-yellow-500 hover:text-yellow-600 flex items-center">
-            View all &gt;
-          </Link>
+      {/* Recommended (Vertical Feed) */}
+      <section className="px-3 md:px-0">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-[22px] font-extrabold text-gray-900 tracking-tight">Recommended</h2>
         </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-6">
-          {loadingBestSellers ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-64 bg-gray-200 rounded-3xl animate-pulse"></div>
-            ))
-          ) : (
-            (bestSellers?.products ?? []).slice(0, 5).map((p) => (
-              <div key={p._id} className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center text-center group cursor-pointer relative">
-                <button className="absolute top-4 right-4 text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity"><MoreHorizontal className="h-5 w-5" /></button>
-                <div className="w-32 h-32 rounded-full overflow-hidden mb-4 shadow-sm">
-                  <img src={p.imageUrl || 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=300&q=80'} alt={p.name} className="w-full h-full object-cover" />
-                </div>
-                <h3 className="font-bold text-gray-900 mb-1">{p.name}</h3>
-                <div className="font-bold text-gray-900 mb-3">
-                  <span className="text-yellow-500">$</span>{p.price.toFixed(2)}
-                </div>
-                <div className="flex items-center gap-2 text-xs font-medium text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full w-full justify-center">
-                  Sold 1k <span className="text-green-500 flex items-center ml-1">+15% <ArrowUp className="h-3 w-3 ml-0.5" /></span>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        {loadingRecommended ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="w-full h-64 bg-gray-200 rounded-3xl animate-pulse"></div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {(recommended?.products ?? []).map((p) => (
+              <ProductCard key={p._id} product={p} />
+            ))}
+          </div>
+        )}
       </section>
-
-      {/* Promo Section */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Promo</h2>
-          <Link to="/menu" className="text-sm font-semibold text-yellow-500 hover:text-yellow-600 flex items-center">
-            View all &gt;
-          </Link>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          {loadingPromos ? (
-            Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded-3xl animate-pulse"></div>
-            ))
-          ) : (
-            (promos?.products ?? []).slice(0, 4).map((p) => (
-              <div key={p._id} className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex items-center gap-4 cursor-pointer">
-                <div className="absolute top-0 left-0 bg-red-500 text-white text-[10px] font-bold px-3 py-1 rounded-br-xl z-10">
-                  15% Off
-                </div>
-                <div className="flex-1 min-w-0 pt-2">
-                  <h3 className="font-bold text-gray-900 truncate mb-1">{p.name}</h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-900"><span className="text-yellow-500">$</span>{(p.price * 0.85).toFixed(2)}</span>
-                    <span className="text-xs text-gray-400 line-through">${p.price.toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center gap-1 mt-2 text-xs text-gray-400 font-medium">
-                    <span className="text-yellow-400">★</span> 5.0
-                    <span className="mx-1">•</span>
-                    1k+ Reviews
-                  </div>
-                </div>
-                <div className="w-20 h-20 shrink-0">
-                  <img src={p.imageUrl || 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=300&q=80'} alt={p.name} className="w-full h-full object-contain mix-blend-multiply" />
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
+      
+      {/* Spacer to allow scrolling past bottom nav */}
+      <div className="h-6"></div>
     </div>
   );
 }
@@ -207,7 +162,7 @@ function emojiForCategory(slug: string): string {
     meals: '🍛',
     snacks: '🥪',
     beverages: '🥤',
-    'fast-food': '🍔',
+    'fast-food': '🍟',
     desserts: '🍰',
     combos: '🍽️',
   };

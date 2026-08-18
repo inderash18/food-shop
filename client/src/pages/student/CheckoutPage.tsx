@@ -101,45 +101,45 @@ export function CheckoutPage() {
       </button>
       <h1 className="text-xl font-bold text-gray-900">Checkout</h1>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <h2 className="font-semibold text-gray-900 mb-3">Order summary</h2>
-        <div className="space-y-2.5">
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5">
+        <h2 className="font-bold text-gray-900 mb-4">Order summary</h2>
+        <div className="space-y-3">
           {cart.items.map((item) => (
-            <div key={item.productId} className="flex justify-between text-sm">
+            <div key={item.productId} className="flex justify-between text-[13px]">
               <span className="text-gray-700">
-                {item.name} <span className="text-gray-400">× {item.quantity}</span>
+                {item.name} <span className="text-gray-400 font-medium ml-1">× {item.quantity}</span>
               </span>
               <span className="font-medium text-gray-900">{formatINR(item.price * item.quantity)}</span>
             </div>
           ))}
         </div>
-        <div className="border-t border-gray-100 mt-4 pt-3 space-y-1.5 text-sm">
+        <div className="border-t border-gray-100 mt-4 pt-4 space-y-2 text-[13px]">
           <div className="flex justify-between text-gray-600">
-            <span>Subtotal</span>
+            <span>Item Total</span>
             <span>{formatINR(cart.subtotal)}</span>
           </div>
           {checkout.data ? (
             <>
               {checkout.data.checkout.order.discount > 0 && (
-                <div className="flex justify-between text-green-600">
+                <div className="flex justify-between text-[#60b246] font-medium">
                   <span>Discount ({checkout.data.checkout.order.couponCode})</span>
                   <span>-{formatINR(checkout.data.checkout.order.discount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-gray-600">
-                <span>Service fee</span>
+                <span>Delivery Fee</span>
                 <span>{formatINR(checkout.data.checkout.order.serviceFee)}</span>
               </div>
             </>
           ) : (
             <div className="flex justify-between text-gray-600">
-              <span>Service fee</span>
-              <span>At checkout</span>
+              <span>Delivery Fee</span>
+              <span>Calculated below</span>
             </div>
           )}
-          <div className="flex justify-between font-bold text-gray-900 pt-1">
-            <span>Total</span>
-            <span>{checkout.data ? formatINR(checkout.data.checkout.order.total) : formatINR(cart.subtotal)}</span>
+          <div className="border-t-2 border-dashed border-gray-100 pt-3 mt-2 flex justify-between font-extrabold text-gray-900 items-center">
+            <span>TO PAY</span>
+            <span className="text-lg">{checkout.data ? formatINR(checkout.data.checkout.order.total) : formatINR(cart.subtotal)}</span>
           </div>
         </div>
       </div>
@@ -174,23 +174,21 @@ export function CheckoutPage() {
         </div>
       )}
 
-      <Button
-        size="lg"
-        className="w-full"
-        loading={checkout.isPending}
-        disabled={!canCheckout}
+      <button
+        disabled={!canCheckout || checkout.isPending}
         onClick={() => checkout.mutate()}
+        className="w-full bg-[#60b246] hover:bg-[#539e3d] text-white font-extrabold h-[56px] rounded-2xl shadow-[0_8px_20px_rgba(96,178,70,0.25)] flex items-center justify-center gap-2 transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
       >
         {checkout.isPending ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" /> Creating secure payment...
+            <Loader2 className="h-5 w-5 animate-spin" /> Creating secure payment...
           </>
         ) : (
           <>
             <Lock className="h-4 w-4" /> Continue to Payment
           </>
         )}
-      </Button>
+      </button>
       <p className="text-center text-xs text-gray-400">You will be able to review the final amount before paying.</p>
     </div>
   );

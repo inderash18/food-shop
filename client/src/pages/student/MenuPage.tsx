@@ -87,7 +87,7 @@ export function MenuPage() {
                   key={v}
                   onClick={() => setIsVeg(v)}
                   className={cn(
-                    'px-3 py-1.5 rounded-full text-sm font-medium border',
+                    'px-4 h-11 rounded-full text-sm font-medium border',
                     isVeg === v ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-600 border-gray-300'
                   )}
                 >
@@ -101,7 +101,7 @@ export function MenuPage() {
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as SortKey)}
-              className="w-full h-10 rounded-xl border border-gray-300 px-3 text-sm text-gray-800"
+              className="w-full h-11 rounded-xl border border-gray-300 px-3 text-sm text-gray-800"
             >
               {sortOptions.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -117,7 +117,7 @@ export function MenuPage() {
         <button
           onClick={() => setParams({})}
           className={cn(
-            'shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium border whitespace-nowrap',
+            'shrink-0 px-4 h-11 flex items-center justify-center rounded-full text-sm font-medium border whitespace-nowrap',
             !categorySlug ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-600 border-gray-300'
           )}
         >
@@ -128,7 +128,7 @@ export function MenuPage() {
             key={c._id}
             onClick={() => setParams(categorySlug === c.slug ? {} : { category: c.slug })}
             className={cn(
-              'shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium border whitespace-nowrap',
+              'shrink-0 px-4 h-11 flex items-center justify-center rounded-full text-sm font-medium border whitespace-nowrap',
               categorySlug === c.slug ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-600 border-gray-300'
             )}
           >
@@ -139,7 +139,7 @@ export function MenuPage() {
 
       <div className={cn('transition-opacity', isFetching && !showSkeleton ? 'opacity-60' : '')}>
         {showSkeleton ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <ProductCardSkeleton key={i} />
             ))}
@@ -150,7 +150,7 @@ export function MenuPage() {
             description={debouncedSearch ? `No results for "${debouncedSearch}". Try a different search.` : 'No items in this category right now.'}
           />
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {products.map((p) => (
               <ProductCard key={p._id} product={p} />
             ))}

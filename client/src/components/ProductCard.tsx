@@ -31,80 +31,93 @@ export function ProductCard({ product }: { product: Product }) {
   };
 
   return (
-    <div className="bg-surface rounded-3xl border border-border shadow-card p-4 flex flex-col transition-shadow hover:shadow-soft relative">
-      <button 
-        onClick={handleToggleWishlist}
-        className={cn(
-          "absolute top-4 left-4 z-10 w-6 h-6 rounded flex items-center justify-center transition-colors",
-          wishlisted ? "bg-primary-500 text-white" : "bg-gray-100 text-gray-400"
-        )}
-      >
-        <Heart className="w-3.5 h-3.5" fill={wishlisted ? "currentColor" : "none"} />
-      </button>
-
-      <Link to={`/menu/${product._id}`} className="relative block h-40 w-full mb-3 rounded-2xl overflow-hidden group">
-        {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
-        ) : (
-          <div className="h-full w-full flex items-center justify-center bg-gray-50 group-hover:bg-gray-100 transition-colors">
-            <span className="text-6xl drop-shadow-sm">{product.isVeg ? '🥗' : '🍔'}</span>
-          </div>
-        )}
-      </Link>
-
-      <div className="flex flex-col flex-1">
-        <Link to={`/menu/${product._id}`}>
-          <h3 className="font-semibold text-gray-900 text-[17px] mb-1 leading-tight line-clamp-1">{product.name}</h3>
+    <div className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-lg transition-shadow relative group">
+      
+      {/* Edge to Edge Image */}
+      <div className="relative h-[180px] w-full overflow-hidden bg-gray-50">
+        <Link to={`/menu/${product._id}`} className="block h-full w-full">
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center bg-gray-50 transition-colors">
+              <span className="text-6xl drop-shadow-sm">{product.isVeg ? '🥗' : '🍔'}</span>
+            </div>
+          )}
         </Link>
         
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-end gap-1.5">
-            <span className="font-bold text-primary-500 text-lg">{formatINR(product.price)}</span>
-            <span className="text-[11px] text-gray-400 font-medium mb-1 line-through">{formatINR(product.price * 1.15)}</span>
-          </div>
-          
-          <div className="flex items-center gap-1 text-amber-400">
-            <Star className="w-3 h-3 fill-current" />
-            <span className="text-[11px] text-gray-500 font-medium">{product.prepMinutes}m</span>
+        {/* Wishlist */}
+        <button 
+          onClick={handleToggleWishlist}
+          className={cn(
+            "absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center transition-colors shadow-sm",
+            wishlisted ? "bg-white text-red-500" : "bg-white/90 backdrop-blur-sm text-gray-400 hover:text-gray-600"
+          )}
+        >
+          <Heart className="w-5 h-5" fill={wishlisted ? "currentColor" : "none"} />
+        </button>
+
+        {/* Promo Badge */}
+        <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-lg text-primary-600 font-extrabold text-xs shadow-sm flex items-center gap-1">
+          <Star className="w-3 h-3 fill-primary-600" /> BESTSELLER
+        </div>
+      </div>
+
+      <div className="p-4 flex flex-col">
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <Link to={`/menu/${product._id}`} className="flex-1 min-w-0">
+            <h3 className="font-bold text-gray-900 text-[17px] leading-tight truncate">{product.name}</h3>
+          </Link>
+          <div className={cn("w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 mt-0.5", product.isVeg ? "border-green-500" : "border-red-500")}>
+            <div className={cn("w-2 h-2 rounded-full", product.isVeg ? "bg-green-500" : "bg-red-500")}></div>
           </div>
         </div>
+        
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-1 text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded text-[11px] font-bold">
+            <Star className="w-3 h-3 fill-green-600 text-green-600" />
+            4.5
+          </div>
+          <span className="text-gray-300">•</span>
+          <span className="text-[12px] text-gray-500 font-medium">{product.prepMinutes} mins</span>
+        </div>
 
-        <div className="mt-auto grid grid-cols-2 gap-2">
-          <button
-            onClick={handleToggleWishlist}
-            className="flex items-center justify-center bg-gray-100 text-gray-600 text-xs font-semibold py-2.5 rounded-full hover:bg-gray-200 transition-colors"
-          >
-            Wishlist
-          </button>
+        <div className="flex items-center justify-between mt-auto pt-2">
+          <div className="flex flex-col">
+            <span className="font-bold text-gray-900 text-[17px]">{formatINR(product.price)}</span>
+            <span className="text-[11px] text-gray-400 font-medium line-through">{formatINR(product.price * 1.15)}</span>
+          </div>
           
-          {soldOut ? (
-             <div className="flex items-center justify-center bg-gray-100 text-gray-400 text-xs font-semibold py-2.5 rounded-full cursor-not-allowed">
-               Sold Out
-             </div>
-          ) : inCart ? (
-            <div className="flex items-center justify-between bg-primary-50 rounded-full px-2 py-1 border border-primary-100">
-              <button
-                onClick={() => (inCart.quantity === 1 ? remove.mutate(product._id) : update.mutate({ productId: product._id, quantity: inCart.quantity - 1 }))}
-                className="h-7 w-7 rounded-full bg-white text-primary-600 flex items-center justify-center shadow-sm hover:bg-gray-50"
-              >
-                <Minus className="h-3.5 w-3.5" />
-              </button>
-              <span className="text-sm font-bold text-primary-600">{inCart.quantity}</span>
+          <div className="shrink-0 relative">
+            {soldOut ? (
+               <div className="flex items-center justify-center bg-gray-100 text-gray-400 text-xs font-bold h-9 px-4 rounded-xl cursor-not-allowed">
+                 SOLD OUT
+               </div>
+            ) : inCart ? (
+              <div className="flex items-center justify-between bg-white rounded-xl h-9 w-[90px] border border-primary-200 shadow-sm overflow-hidden">
+                <button
+                  onClick={() => (inCart.quantity === 1 ? remove.mutate(product._id) : update.mutate({ productId: product._id, quantity: inCart.quantity - 1 }))}
+                  className="h-full w-8 text-primary-600 flex items-center justify-center hover:bg-primary-50 transition-colors"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <span className="text-sm font-extrabold text-primary-600">{inCart.quantity}</span>
+                <button
+                  onClick={() => update.mutate({ productId: product._id, quantity: inCart.quantity + 1 })}
+                  className="h-full w-8 text-primary-600 flex items-center justify-center hover:bg-primary-50 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
               <button
                 onClick={handleAdd}
-                className="h-7 w-7 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-sm hover:bg-primary-600"
+                className="flex items-center justify-center bg-white border border-gray-200 text-primary-600 text-[13px] font-extrabold h-9 px-6 rounded-xl hover:bg-gray-50 transition-colors shadow-sm relative overflow-hidden"
               >
-                <Plus className="h-3.5 w-3.5" />
+                ADD
+                <span className="absolute top-0 right-1 text-[8px] text-primary-400 font-bold">+</span>
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleAdd}
-              className="flex items-center justify-center bg-primary-500 text-white text-xs font-semibold py-2.5 rounded-full hover:bg-primary-600 transition-colors shadow-sm"
-            >
-              Order Now
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

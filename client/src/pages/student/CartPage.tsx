@@ -86,18 +86,18 @@ export function CartPage() {
                     update.mutate({ productId: item.productId, quantity: item.quantity - 1 });
                   }
                 }}
-                className="h-8 w-8 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600"
+                className="h-11 w-11 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600"
                 aria-label="Decrease"
               >
-                <Minus className="h-4 w-4" />
+                <Minus className="h-5 w-5" />
               </button>
-              <span className="font-bold text-gray-900 min-w-6 text-center">{item.quantity}</span>
+              <span className="font-bold text-gray-900 min-w-8 text-center text-lg">{item.quantity}</span>
               <button
                 onClick={() => update.mutate({ productId: item.productId, quantity: item.quantity + 1 })}
-                className="h-8 w-8 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600"
+                className="h-11 w-11 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600"
                 aria-label="Increase"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-5 w-5" />
               </button>
             </div>
           </div>
@@ -118,27 +118,28 @@ export function CartPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-2.5">
-        <div className="flex justify-between text-sm text-gray-600">
-          <span>Subtotal</span>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5 space-y-3">
+        <h3 className="font-bold text-gray-900 mb-1">Bill Details</h3>
+        <div className="flex justify-between text-[13px] text-gray-600">
+          <span>Item Total</span>
           <span className="font-semibold text-gray-900">{formatINR(cart.subtotal)}</span>
         </div>
-        <div className="flex justify-between text-sm text-gray-600">
-          <span>Service fee</span>
+        <div className="flex justify-between text-[13px] text-gray-600">
+          <span>Delivery Fee</span>
           <span className="text-gray-900">Calculated at checkout</span>
         </div>
-        <div className="border-t border-gray-100 pt-2.5 flex justify-between">
-          <span className="font-bold text-gray-900">Total</span>
-          <span className="font-bold text-gray-900">{formatINR(cart.subtotal)}</span>
+        <div className="border-t-2 border-dashed border-gray-100 pt-3 mt-1 flex justify-between items-center">
+          <span className="font-extrabold text-gray-900">TO PAY</span>
+          <span className="font-extrabold text-gray-900 text-lg">{formatINR(cart.subtotal)}</span>
         </div>
       </div>
 
-      <div className="sticky bottom-20 md:bottom-4">
+      <div className="sticky bottom-24 md:bottom-4 z-10">
         <Link to="/checkout">
-          <Button size="lg" className="w-full">
+          <button className="w-full bg-[#60b246] hover:bg-[#539e3d] text-white font-extrabold h-[56px] rounded-2xl shadow-[0_8px_20px_rgba(96,178,70,0.25)] flex items-center justify-center gap-2 transition-transform active:scale-[0.98]">
             <Lock className="h-4 w-4" />
             Proceed to Checkout
-          </Button>
+          </button>
         </Link>
       </div>
 

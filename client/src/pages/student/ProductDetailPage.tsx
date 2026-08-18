@@ -81,14 +81,14 @@ export function ProductDetailPage() {
               <div className="flex items-center gap-3 bg-primary-50 rounded-xl px-2 py-1.5">
                 <button
                   onClick={() => (inCart.quantity === 1 ? remove.mutate(product._id) : update.mutate({ productId: product._id, quantity: inCart.quantity - 1 }))}
-                  className="h-8 w-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-primary-600"
+                  className="h-11 w-11 rounded-lg bg-white shadow-sm flex items-center justify-center text-primary-600"
                   aria-label="Decrease"
                 >
-                  <Minus className="h-4 w-4" />
+                  <Minus className="h-5 w-5" />
                 </button>
-                <span className="font-bold text-primary-700 min-w-5 text-center">{inCart.quantity}</span>
-                <button onClick={() => add.mutate({ productId: product._id })} className="h-8 w-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-primary-600" aria-label="Increase">
-                  <Plus className="h-4 w-4" />
+                <span className="font-bold text-primary-700 min-w-6 text-center text-lg">{inCart.quantity}</span>
+                <button onClick={() => add.mutate({ productId: product._id })} className="h-11 w-11 rounded-lg bg-white shadow-sm flex items-center justify-center text-primary-600" aria-label="Increase">
+                  <Plus className="h-5 w-5" />
                 </button>
               </div>
             ) : (
