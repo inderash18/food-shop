@@ -12,9 +12,9 @@ import {
   ArrowLeft,
   XCircle,
   Clock,
-  WifiOff,
   ShoppingBag,
   HelpCircle,
+  Lock,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import apiClient, { getErrorMessage, getErrorCode } from '../../api/client';
@@ -28,10 +28,13 @@ const PAYMENT_FAILED = 'FAILED';
 
 type PaymentUIState =
   | 'INITIALIZING'
+  | 'REDIRECTING'
   | 'PAYMENT_READY'
   | 'VERIFYING'
   | 'SUCCESS'
   | 'FAILED'
+  | 'CANCELLED'
+  | 'PENDING'
   | 'EXPIRED'
   | 'NOT_CONFIGURED'
   | 'TIMEOUT'
@@ -95,7 +98,7 @@ export function PaymentPage() {
           sessionStorage.removeItem('providerPaymentId');
           sessionStorage.removeItem('upiIntentUri');
           sessionStorage.removeItem('merchantUpiId');
-          toast.success('Payment verified successfully! Order confirmed.');
+          toast.success('Payment verified successfully! Pre-order confirmed.');
           setTimeout(() => {
             navigate('/order-confirmation', { replace: true });
           }, 1500);
@@ -105,12 +108,19 @@ export function PaymentPage() {
         if (paymentStatus === PAYMENT_FAILED) {
           stopPolling();
           setUiState('FAILED');
-          setStatusMessage('Payment verification failed. Your order has not been confirmed.');
+          setStatusMessage('Payment failed. Your order has not been confirmed.');
+          return;
+        }
+
+        if (paymentStatus === 'CANCELLED') {
+          stopPolling();
+          setUiState('CANCELLED');
+          setStatusMessage('Payment cancelled. You have not been charged successfully.');
           return;
         }
 
         // If still pending
-        if (uiState !== 'PAYMENT_READY') {
+        if (uiState !== 'PAYMENT_READY' && uiState !== 'PENDING') {
           setUiState('PAYMENT_READY');
         }
       } catch (err: any) {
@@ -121,11 +131,11 @@ export function PaymentPage() {
           stopPolling();
           setUiState('NOT_CONFIGURED');
           setStatusMessage(
-            'Online payment is currently unavailable. Paytm payment credentials are not configured.'
+            'Online payment is currently unavailable. Payment service configuration is pending.'
           );
           if (!hasNotifiedNotConfigured) {
             setHasNotifiedNotConfigured(true);
-            toast.error('Online payment unavailable: Provider not configured.');
+            toast.error('Online payment unavailable: Payment service configuration is pending.');
           }
           return;
         }
@@ -170,9 +180,9 @@ export function PaymentPage() {
     // Run first check
     performVerification(false);
 
-    // Start 10-second polling interval (only if not unconfigured or finished)
+    // Start 10-second polling interval
     pollTimerRef.current = setInterval(() => {
-      if (uiState !== 'NOT_CONFIGURED' && uiState !== 'SUCCESS' && uiState !== 'FAILED') {
+      if (uiState !== 'NOT_CONFIGURED' && uiState !== 'SUCCESS' && uiState !== 'FAILED' && uiState !== 'CANCELLED') {
         performVerification(false);
       }
     }, 10000);
@@ -209,149 +219,163 @@ export function PaymentPage() {
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
   return (
-    <div className="max-w-md mx-auto space-y-5 pt-4 pb-12 px-4">
+    <div className="max-w-md mx-auto space-y-5 pt-4 pb-16 px-3 sm:px-0 antialiased">
       
       {/* Header */}
-      <div className="text-center space-y-1.5">
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight">Complete Payment</h1>
-        <div className="inline-flex items-center justify-center gap-2 text-emerald-800 font-black text-xl bg-emerald-50 border border-emerald-200/80 px-5 py-1.5 rounded-full shadow-3xs">
+      <div className="text-center space-y-1.5 bg-white p-5 rounded-3xl border border-amber-100 shadow-card">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Secure Payment Transition</span>
+        <h1 className="text-2xl font-bold text-amber-950 tracking-tight">Order #{orderNumber || 'Pending'}</h1>
+        <div className="inline-flex items-center justify-center gap-2 text-amber-950 font-bold text-2xl bg-[#FEDB71] border border-amber-300 px-6 py-1.5 rounded-full shadow-3xs">
           {formatINR(amount)}
         </div>
-        <p className="text-xs text-gray-500 font-bold">
-          Order #{orderNumber || 'Pending'}
-        </p>
       </div>
 
       {/* ========================================================= */}
-      {/* STATE: NOT CONFIGURED (Deterministic 503 / Missing Paytm)   */}
+      {/* STATE: NOT CONFIGURED (Section 8 Spec: Paytm Missing)     */}
       {/* ========================================================= */}
       {uiState === 'NOT_CONFIGURED' && (
-        <div className="bg-white rounded-3xl border border-amber-200/90 shadow-2xs p-7 text-center space-y-4 animate-in">
-          <div className="w-14 h-14 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+        <div className="bg-white rounded-3xl border border-amber-200 shadow-card p-6 sm:p-7 text-center space-y-4 animate-in">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
             <AlertTriangle className="w-7 h-7" />
           </div>
 
-          <div className="space-y-1">
-            <h2 className="text-base font-extrabold text-gray-900">Online Payment Unavailable</h2>
-            <p className="text-xs text-gray-600 leading-relaxed max-w-xs mx-auto">
-              Paytm payment gateway has not been configured with production credentials yet.
+          <div className="space-y-1.5">
+            <h2 className="text-base font-bold text-amber-950">Online payment is currently unavailable.</h2>
+            <p className="text-xs text-stone-600 leading-relaxed max-w-xs mx-auto">
+              Payment service configuration is pending. Real Paytm merchant credentials have not been configured yet.
             </p>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/60 text-[11px] text-amber-800 text-left space-y-1">
-            <p className="font-bold flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" /> Order State Protected
+          <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/60 text-[11px] text-amber-900 text-left space-y-1">
+            <p className="font-bold flex items-center gap-1.5 text-amber-950">
+              <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0" /> Safe Order State
             </p>
-            <p className="text-amber-700">
-              Your order <strong className="font-mono">#{orderNumber}</strong> remains safely recorded as{' '}
-              <strong className="text-amber-900">PAYMENT_PENDING</strong>. No funds were charged.
+            <p className="text-stone-600 font-normal">
+              Your order <strong className="font-mono text-amber-950">#{orderNumber}</strong> remains safely recorded in{' '}
+              <strong className="text-amber-950 font-bold">PAYMENT_PENDING</strong> state. No funds were charged.
             </p>
           </div>
 
           <div className="space-y-2 pt-2">
-            {orderId ? (
-              <Link
-                to={`/orders/${orderId}`}
-                className="block w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-emerald transition-transform active:scale-98"
-              >
-                View Order Details
-              </Link>
-            ) : (
-              <Link
-                to="/orders"
-                className="block w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-emerald transition-transform active:scale-98"
-              >
-                View My Orders
-              </Link>
-            )}
+            <Link
+              to="/checkout"
+              className="block w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs border border-amber-300 transition-transform active:scale-98 text-center"
+            >
+              BACK TO CHECKOUT
+            </Link>
 
             <Link
               to="/cart"
-              className="block w-full py-3 bg-gray-50 hover:bg-gray-100 text-gray-700 font-extrabold text-xs rounded-xl border border-gray-200 transition-colors"
+              className="block w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl transition-colors text-center"
             >
-              Return to Cart
+              RETURN TO CART
             </Link>
           </div>
         </div>
       )}
 
       {/* ========================================================= */}
-      {/* STATE: SUCCESS                                            */}
+      {/* STATE: SUCCESS (Section 9 Spec: Payment Verified)          */}
       {/* ========================================================= */}
       {uiState === 'SUCCESS' && (
-        <div className="bg-white rounded-3xl border border-emerald-200 shadow-2xs p-8 text-center space-y-4 animate-in">
-          <div className="mx-auto h-16 w-16 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
+        <div className="bg-white rounded-3xl border border-emerald-200 shadow-card p-8 text-center space-y-4 animate-in">
+          <div className="mx-auto h-16 w-16 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-3xs">
             <CheckCircle2 className="h-10 w-10" />
           </div>
           <div className="space-y-1">
-            <h2 className="text-xl font-black text-gray-900">Payment Verified!</h2>
-            <p className="text-gray-500 text-xs">Your meal is officially placed. Redirecting to receipt...</p>
+            <h2 className="text-xl font-bold text-amber-950">Payment Verified!</h2>
+            <p className="text-stone-500 text-xs font-normal">Your pre-order has been confirmed. Redirecting to receipt pass...</p>
           </div>
-          <Loader2 className="w-5 h-5 text-emerald-600 animate-spin mx-auto" />
+          <Loader2 className="w-5 h-5 text-amber-950 animate-spin mx-auto" />
         </div>
       )}
 
       {/* ========================================================= */}
-      {/* STATE: FAILED                                             */}
+      {/* STATE: FAILED (Section 10 Spec: Payment Failed)            */}
       {/* ========================================================= */}
       {uiState === 'FAILED' && (
-        <div className="bg-white rounded-3xl border border-rose-200 shadow-2xs p-8 text-center space-y-4 animate-in">
-          <div className="w-14 h-14 rounded-3xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
+        <div className="bg-white rounded-3xl border border-rose-200 shadow-card p-7 text-center space-y-4 animate-in">
+          <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
             <XCircle className="w-7 h-7" />
           </div>
           <div className="space-y-1">
-            <h2 className="text-lg font-black text-rose-700">Payment Failed</h2>
-            <p className="text-gray-600 text-xs">
-              {statusMessage || 'Your payment could not be completed or was rejected by your bank.'}
+            <h2 className="text-base font-bold text-rose-700">Payment failed</h2>
+            <p className="text-stone-600 text-xs font-normal">
+              {statusMessage || 'Your order has not been confirmed.'}
             </p>
           </div>
           <div className="space-y-2 pt-2">
             <button
               onClick={() => performVerification(true)}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-emerald"
+              className="w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs border border-amber-300 transition-transform active:scale-98"
             >
-              Retry Verification
+              TRY PAYMENT AGAIN
             </button>
             <Link
-              to="/checkout"
-              className="block w-full py-3 bg-gray-50 hover:bg-gray-100 text-gray-700 font-extrabold text-xs rounded-xl border border-gray-200"
+              to="/cart"
+              className="block w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl transition-colors"
             >
-              Back to Checkout
+              BACK TO CART
             </Link>
           </div>
         </div>
       )}
 
       {/* ========================================================= */}
-      {/* STATE: EXPIRED                                            */}
+      {/* STATE: CANCELLED (Section 11 Spec: Payment Cancelled)      */}
+      {/* ========================================================= */}
+      {uiState === 'CANCELLED' && (
+        <div className="bg-white rounded-3xl border border-amber-200 shadow-card p-7 text-center space-y-4 animate-in">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+            <AlertTriangle className="w-7 h-7" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-base font-bold text-amber-950">Payment cancelled</h2>
+            <p className="text-stone-600 text-xs font-normal">
+              You have not been charged successfully. Your order has not been confirmed.
+            </p>
+          </div>
+          <div className="pt-2">
+            <Link
+              to="/checkout"
+              className="block w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs border border-amber-300 transition-transform active:scale-98 text-center"
+            >
+              RETURN TO CHECKOUT
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* STATE: EXPIRED (Session Timeout)                          */}
       {/* ========================================================= */}
       {uiState === 'EXPIRED' && (
-        <div className="bg-white rounded-3xl border border-gray-200 shadow-2xs p-8 text-center space-y-4 animate-in">
-          <div className="w-14 h-14 rounded-3xl bg-gray-100 text-gray-500 flex items-center justify-center mx-auto">
+        <div className="bg-white rounded-3xl border border-stone-200 shadow-card p-7 text-center space-y-4 animate-in">
+          <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-500 flex items-center justify-center mx-auto">
             <Clock className="w-7 h-7" />
           </div>
           <div className="space-y-1">
-            <h2 className="text-lg font-black text-gray-900">Payment Session Expired</h2>
-            <p className="text-gray-500 text-xs">This dynamic QR payment window has expired for security.</p>
+            <h2 className="text-base font-bold text-amber-950">Payment Session Expired</h2>
+            <p className="text-stone-500 text-xs font-normal">This dynamic payment session has timed out for security.</p>
           </div>
           <Link
             to="/cart"
-            className="block w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-emerald"
+            className="block w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs border border-amber-300 text-center"
           >
-            Generate Fresh Payment in Cart
+            Generate Fresh Pre-Order in Cart
           </Link>
         </div>
       )}
 
       {/* ========================================================= */}
-      {/* STATE: PAYMENT READY / SCAN QR                            */}
+      {/* STATE: PAYMENT READY / REDIRECTING / VERIFYING PENDING    */}
       {/* ========================================================= */}
       {uiState === 'PAYMENT_READY' && (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-2xs overflow-hidden relative animate-in">
+        <div className="bg-white rounded-3xl border border-amber-100 shadow-card overflow-hidden relative animate-in">
           
           {/* Main QR Section */}
           <div className="p-6 sm:p-7 flex flex-col items-center space-y-5">
-            <div className="bg-emerald-50/50 p-4 rounded-3xl border border-emerald-100/80 relative group shadow-3xs">
+            <div className="bg-amber-50/60 p-4 rounded-3xl border border-amber-200/80 relative shadow-3xs">
               {upiIntentUri ? (
                 <QRCodeSVG
                   value={upiIntentUri}
@@ -359,20 +383,21 @@ export function PaymentPage() {
                   level="Q"
                   includeMargin={true}
                   className="rounded-2xl"
+                  fgColor="#451A03"
                 />
               ) : (
-                <div className="w-[200px] h-[200px] bg-gray-100 rounded-2xl flex flex-col items-center justify-center text-gray-400 p-4 text-center">
-                  <QrCode className="w-12 h-12 mb-2 text-gray-300" />
-                  <span className="text-[11px] font-bold">Dynamic QR Code</span>
+                <div className="w-[200px] h-[200px] bg-amber-50/50 rounded-2xl flex flex-col items-center justify-center text-amber-800 p-4 text-center border border-amber-100">
+                  <QrCode className="w-12 h-12 mb-2 text-amber-600" />
+                  <span className="text-[11px] font-bold">Secure Online Payment</span>
                 </div>
               )}
             </div>
 
             <div className="text-center space-y-1 w-full">
-              <p className="font-extrabold text-gray-900 text-xs tracking-wider uppercase">
+              <p className="font-bold text-amber-950 text-xs tracking-wider uppercase">
                 Scan with any UPI Application
               </p>
-              <div className="flex items-center justify-center gap-2 text-[11px] text-gray-400 font-bold pt-1">
+              <div className="flex items-center justify-center gap-2 text-[11px] text-stone-500 font-medium pt-1">
                 <span>Google Pay</span>
                 <span>•</span>
                 <span>PhonePe</span>
@@ -386,7 +411,7 @@ export function PaymentPage() {
             {isMobile && upiIntentUri && (
               <a
                 href={upiIntentUri}
-                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 px-4 rounded-2xl font-black text-xs shadow-emerald transition-transform active:scale-98"
+                className="w-full flex items-center justify-center gap-2 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 py-3.5 px-4 rounded-2xl font-bold text-xs shadow-3xs border border-amber-300 transition-transform active:scale-98"
               >
                 <Smartphone className="h-4 w-4" />
                 Pay via Installed UPI App
@@ -396,18 +421,18 @@ export function PaymentPage() {
 
           {/* UPI ID Section */}
           {upiId && (
-            <div className="p-5 bg-gray-50/70 border-t border-gray-100 flex flex-col items-center space-y-2">
-              <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">
-                Or Transfer to UPI VPA
+            <div className="p-5 bg-amber-50/40 border-t border-amber-100 flex flex-col items-center space-y-2">
+              <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">
+                Or Transfer to Merchant UPI VPA
               </p>
 
-              <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl p-2 pl-3.5 w-full shadow-3xs">
-                <span className="text-xs font-mono font-bold text-gray-900 flex-1 truncate">{upiId}</span>
+              <div className="flex items-center gap-2 bg-white border border-amber-200 rounded-2xl p-2 pl-3.5 w-full shadow-3xs">
+                <span className="text-xs font-mono font-bold text-amber-950 flex-1 truncate">{upiId}</span>
                 <button
                   onClick={handleCopy}
-                  className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs rounded-xl transition-colors flex items-center gap-1 shrink-0"
+                  className="px-3 py-1.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl transition-colors flex items-center gap-1 shrink-0 border border-amber-300"
                 >
-                  {isCopied ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                  {isCopied ? <CheckCircle2 className="h-3.5 w-3.5 text-amber-950" /> : <Copy className="h-3.5 w-3.5" />}
                   <span>{isCopied ? 'Copied' : 'Copy'}</span>
                 </button>
               </div>
@@ -415,20 +440,20 @@ export function PaymentPage() {
           )}
 
           {/* Status & Verification Footer */}
-          <div className="bg-emerald-950 p-5 text-white space-y-4">
+          <div className="bg-amber-950 p-5 text-white space-y-4">
             <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-1.5 text-emerald-300">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <div className="flex items-center gap-1.5 text-amber-200">
+                <ShieldCheck className="w-4 h-4 text-[#FEDB71]" />
                 <span className="font-bold">256-Bit Bank Encryption</span>
               </div>
-              <div className="flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded-xl text-emerald-200 font-mono text-[11px] font-bold">
-                <Clock className="w-3 h-3" />
+              <div className="flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded-xl text-amber-200 font-mono text-[11px] font-bold">
+                <Clock className="w-3 h-3 text-[#FEDB71]" />
                 <span>{timeString}</span>
               </div>
             </div>
 
             {statusMessage && (
-              <div className="p-2.5 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-200 text-xs font-bold">
+              <div className="p-2.5 rounded-xl bg-amber-900/80 border border-amber-700 text-amber-100 text-xs font-bold">
                 {statusMessage}
               </div>
             )}
@@ -436,15 +461,15 @@ export function PaymentPage() {
             <button
               onClick={() => performVerification(true)}
               disabled={isChecking}
-              className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-60"
+              className="w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-60 border border-amber-300"
             >
               {isChecking ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin text-emerald-950" /> Verifying Bank Status...
+                  <Loader2 className="h-4 w-4 animate-spin text-amber-950" /> Verifying Payment Status...
                 </>
               ) : (
                 <>
-                  <RefreshCcw className="h-4 w-4 text-emerald-950" /> Check Payment Status
+                  <RefreshCcw className="h-4 w-4 text-amber-950" /> Check Payment Status
                 </>
               )}
             </button>
@@ -456,9 +481,9 @@ export function PaymentPage() {
       <div className="text-center">
         <Link
           to={`/help?orderId=${orderNumber}`}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-400 hover:text-stone-600 transition-colors"
         >
-          <HelpCircle className="w-3.5 h-3.5" /> Need Help with this Payment?
+          <HelpCircle className="w-3.5 h-3.5" /> Need Help with this Pre-Order Payment?
         </Link>
       </div>
     </div>

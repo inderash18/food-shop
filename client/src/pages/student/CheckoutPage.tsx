@@ -4,17 +4,17 @@ import { useMutation } from '@tanstack/react-query';
 import {
   ChevronLeft,
   Lock,
-  Tag,
   Loader2,
   MapPin,
   Clock,
-  Sparkles,
-  CheckCircle2,
-  CreditCard,
   ShieldCheck,
   Building,
   Utensils,
-  AlertCircle,
+  AlertTriangle,
+  User,
+  ShoppingBag,
+  CreditCard,
+  ArrowRight,
 } from 'lucide-react';
 import { apiPost, getErrorMessage } from '../../api/client';
 import { useCart } from '../../hooks/useCart';
@@ -50,8 +50,8 @@ export function CheckoutPage() {
   const stateNotes = (location.state as any)?.notes || '';
   const stateCoupon = (location.state as any)?.coupon || '';
 
-  const [cookingNotes, setCookingNotes] = useState(stateNotes);
-  const [selectedMethod, setSelectedMethod] = useState<'upi' | 'paytm' | 'card'>('upi');
+  const [cookingNotes] = useState(stateNotes);
+  const [unconfiguredModalOpen, setUnconfiguredModalOpen] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const checkoutIdRef = useRef<string>(
@@ -90,22 +90,23 @@ export function CheckoutPage() {
       const message = getErrorMessage(err);
 
       if (code === 'PAYMENT_PROVIDER_NOT_CONFIGURED' || err.response?.status === 503) {
-        setCheckoutError('Payment gateway is currently simulated/unconfigured.');
+        setUnconfiguredModalOpen(true);
+        setCheckoutError('Online payment is currently unavailable. Payment service configuration is pending.');
       } else {
         setCheckoutError(message);
+        toast.error(message);
       }
-      toast.error(message);
     },
   });
 
   if (cart.items.length === 0) {
     return (
-      <div className="max-w-md mx-auto my-12 p-8 bg-white rounded-[28px] border border-gray-100 text-center space-y-4 shadow-card">
-        <Utensils className="w-10 h-10 text-gray-300 mx-auto" />
-        <h2 className="text-base font-bold text-darkText">No items in your pre-order</h2>
+      <div className="max-w-md mx-auto my-12 p-8 bg-white rounded-3xl border border-amber-100 text-center space-y-4 shadow-card">
+        <Utensils className="w-10 h-10 text-amber-600 mx-auto" />
+        <h2 className="text-base font-bold text-amber-950">No items in your pre-order</h2>
         <Link
           to="/menu"
-          className="inline-flex px-5 py-2.5 bg-[#389C9A] text-white font-semibold text-xs rounded-xl shadow-teal"
+          className="inline-flex px-5 py-2.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs border border-amber-300"
         >
           Back to Food Menu
         </Link>
@@ -114,133 +115,189 @@ export function CheckoutPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-24 antialiased">
+    <div className="max-w-2xl mx-auto space-y-6 pb-28 pt-2 antialiased px-1 sm:px-0">
+      
       {/* Top Header */}
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate('/cart')}
-          className="p-2 rounded-2xl bg-secondaryBg hover:bg-gray-100 text-darkText transition-colors shadow-3xs flex items-center gap-1 text-xs font-semibold"
+          className="p-2 rounded-2xl bg-amber-50/70 hover:bg-amber-100/60 text-amber-950 transition-colors border border-amber-200/60 flex items-center gap-1 text-xs font-semibold"
         >
-          <ChevronLeft className="w-4 h-4" /> Edit Pre-Order
+          <ChevronLeft className="w-4 h-4 text-amber-700" /> Edit Cart
         </button>
 
-        <span className="text-xs font-semibold text-[#389C9A] bg-teal-50 px-3 py-1 rounded-full border border-teal-200/60">
-          Fast-Track Express Collection
+        <span className="text-xs font-bold text-amber-950 bg-[#FEDB71] px-3 py-1 rounded-full border border-amber-300 shadow-3xs">
+          Express Pre-Order Checkout
         </span>
       </div>
 
-      {/* Pickup Station Banner */}
-      <div className="bg-[#389C9A] rounded-[28px] p-6 text-white shadow-teal space-y-2">
-        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-semibold uppercase tracking-wider">
-          Pickup Station
+      {/* Shop Information Banner */}
+      <div className="bg-white rounded-3xl border border-amber-100 p-5 shadow-card flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-[#FEDB71] text-amber-950 border border-amber-300 flex items-center justify-center font-bold shrink-0">
+            <Building className="w-5 h-5 text-amber-900" />
+          </div>
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-amber-950">SHOP LOCATION</h2>
+            <p className="text-sm font-bold text-amber-950">Campus Main Canteen — Counter 2</p>
+            <p className="text-[11px] text-stone-500 font-normal">Order Type: <strong className="font-bold text-amber-950">PRE-ORDER</strong></p>
+          </div>
         </div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Counter 2 - Express Pick</h1>
-        <p className="text-xs text-white/90 font-normal">
-          Food is freshly cooked and assigned your Order Token upon payment confirmation.
-        </p>
+        <span className="px-2.5 py-1 bg-amber-50 text-amber-900 text-[10px] font-bold rounded-lg border border-amber-200 shrink-0">
+          Single Shop
+        </span>
       </div>
 
-      {/* Selected Items Breakdown */}
-      <div className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-card space-y-4">
-        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-darkText">
-            Pre-Order Items ({itemCount})
+      {/* Customer Information */}
+      <div className="bg-white rounded-3xl border border-amber-100 p-5 shadow-card space-y-3">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+          <User className="w-4 h-4 text-amber-700" /> Customer Information
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-amber-50/40 p-3.5 rounded-2xl border border-amber-100">
+          <div>
+            <span className="text-[10px] uppercase font-semibold text-stone-400">Student Name</span>
+            <p className="font-bold text-amber-950">{user?.name || 'Student'}</p>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-semibold text-stone-400">Student ID / Email</span>
+            <p className="font-bold text-amber-950">{user?.studentId || user?.email || 'N/A'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Selected Items Review */}
+      <div className="bg-white rounded-3xl border border-amber-100 p-6 shadow-card space-y-4">
+        <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+            <ShoppingBag className="w-4 h-4 text-amber-700" /> Pre-Order Items ({itemCount})
           </h2>
-          <Link to="/cart" className="text-xs font-semibold text-[#389C9A] hover:underline">
-            Modify
+          <Link to="/cart" className="text-xs font-bold text-amber-800 hover:underline">
+            Modify Cart
           </Link>
         </div>
 
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-amber-100/80">
           {cart.items.map((i) => (
             <div key={i.productId} className="py-2.5 flex items-center justify-between text-xs">
-              <span className="font-medium text-darkText">
-                <span className="font-semibold text-[#389C9A]">{i.quantity}x</span> {i.name}
+              <span className="font-medium text-amber-950">
+                <span className="font-bold text-amber-900">{i.quantity}×</span> {i.name}
               </span>
-              <span className="font-semibold text-darkText tabular-nums">{formatINR(i.price * i.quantity)}</span>
+              <span className="font-bold text-amber-950 tabular-nums">{formatINR(i.price * i.quantity)}</span>
             </div>
           ))}
         </div>
 
         {cookingNotes && (
-          <div className="p-3 bg-secondaryBg rounded-xl text-xs text-gray-600 font-normal">
-            <span className="font-semibold text-darkText">Chef Notes:</span> {cookingNotes}
+          <div className="p-3 bg-amber-50/60 rounded-xl text-xs text-amber-950 font-normal border border-amber-200/50">
+            <span className="font-bold">Chef Instructions:</span> {cookingNotes}
           </div>
         )}
       </div>
 
-      {/* Online Payment Method Selection */}
-      <div className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-card space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-darkText">
-          Select Online Payment Method
-        </h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            { id: 'upi', name: 'Instant UPI / QR', desc: 'Google Pay, PhonePe, Paytm' },
-            { id: 'paytm', name: 'Paytm Wallet / NetBanking', desc: 'Direct Wallet & Bank' },
-            { id: 'card', name: 'Campus Smart Card', desc: 'Student Prepaid Balance' },
-          ].map((method) => (
-            <button
-              key={method.id}
-              type="button"
-              onClick={() => setSelectedMethod(method.id as any)}
-              className={cn(
-                'p-4 rounded-2xl border text-left flex flex-col justify-between space-y-1 transition-all',
-                selectedMethod === method.id
-                  ? 'bg-teal-50 border-[#389C9A] text-darkText shadow-3xs'
-                  : 'bg-secondaryBg border-transparent text-gray-700 hover:bg-gray-100'
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-darkText">{method.name}</span>
-                <span
-                  className={cn(
-                    'w-3 h-3 rounded-full',
-                    selectedMethod === method.id ? 'bg-[#389C9A]' : 'border border-gray-300'
-                  )}
-                />
-              </div>
-              <p className="text-[10px] text-gray-400 font-normal">{method.desc}</p>
-            </button>
-          ))}
+      {/* Payment Section */}
+      <div className="bg-white rounded-3xl border border-amber-100 p-6 shadow-card space-y-4">
+        <div className="border-b border-amber-100 pb-3">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+            <CreditCard className="w-4 h-4 text-amber-700" /> PAYMENT METHOD
+          </h2>
+          <p className="text-xs text-stone-500 font-normal mt-0.5">
+            Secure online payment via Instant UPI. You will be redirected to the payment provider.
+          </p>
         </div>
-      </div>
 
-      {/* Final Total & Place Order Action */}
-      <div className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-card space-y-4">
-        <div className="flex justify-between items-center text-sm font-bold text-darkText">
-          <span>Total Amount to Pay</span>
-          <span className="text-xl text-[#389C9A] tabular-nums">{formatINR(subtotal)}</span>
+        {/* Single Payment Method Option: Instant UPI / QR */}
+        <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-300 text-amber-950 flex items-center justify-between shadow-3xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#FEDB71] border border-amber-300 flex items-center justify-center font-bold text-amber-950 shrink-0">
+              ⚡
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-950">Instant UPI / QR Code</p>
+              <p className="text-[11px] text-stone-600 font-normal">Google Pay, PhonePe, Paytm, BHIM</p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 bg-white text-amber-950 text-[10px] font-bold rounded-lg border border-amber-300 shadow-3xs">
+            Selected
+          </span>
+        </div>
+
+        <div className="flex justify-between items-center bg-amber-50/40 p-4 rounded-2xl border border-amber-200/80">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Amount to pay</span>
+            <span className="text-xs font-medium text-stone-600">Authoritative server total</span>
+          </div>
+          <span className="text-2xl font-bold text-amber-950 tabular-nums">{formatINR(subtotal)}</span>
         </div>
 
         {checkoutError && (
-          <div className="p-3 bg-rose-50 text-rose-700 text-xs font-semibold rounded-xl border border-rose-200 flex items-center gap-1.5">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            {checkoutError}
+          <div className="p-3.5 bg-rose-50 text-rose-800 text-xs font-semibold rounded-2xl border border-rose-200 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+            <span>{checkoutError}</span>
           </div>
         )}
 
         <button
           onClick={() => checkout.mutate()}
           disabled={checkout.isPending}
-          className="w-full py-4 bg-[#FEDB71] hover:bg-[#fedb71]/90 text-darkText font-semibold text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50"
+          className="w-full py-4 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-sm sm:text-base rounded-2xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50 border border-amber-300"
         >
           {checkout.isPending ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" /> Processing Pre-Order...
+              <Loader2 className="w-5 h-5 animate-spin text-amber-950" /> Preparing secure payment...
             </>
           ) : (
             <>
-              <Lock className="w-4 h-4" /> Pay & Place Pre-Order • <span className="tabular-nums">{formatINR(subtotal)}</span>
+              <Lock className="w-4 h-4" /> PAY & PLACE PRE-ORDER • <span className="tabular-nums">{formatINR(subtotal)}</span>
             </>
           )}
         </button>
 
-        <p className="text-[11px] text-gray-400 font-normal text-center flex items-center justify-center gap-1">
-          <ShieldCheck className="w-3.5 h-3.5 text-[#389C9A]" /> Instant Order Token & Digital Pass generated immediately.
+        <p className="text-[11px] text-stone-400 font-normal text-center flex items-center justify-center gap-1">
+          <ShieldCheck className="w-3.5 h-3.5 text-amber-600" /> Your order stays in PAYMENT_PENDING state until payment is verified.
         </p>
       </div>
+
+      {/* Paytm Unconfigured Error Modal (Section 8 Spec) */}
+      {unconfiguredModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-amber-950/20 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl space-y-4 text-center border border-amber-200 animate-in">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-amber-950">Online payment is currently unavailable.</h3>
+              <p className="text-xs font-normal text-stone-600 leading-relaxed">
+                Payment service configuration is pending. Real Paytm credentials have not been configured on the server yet.
+              </p>
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-xl text-[11px] text-amber-900 border border-amber-200 text-left space-y-1">
+              <p className="font-bold flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-700" /> Safe Order State
+              </p>
+              <p className="text-stone-600 font-normal">
+                No funds were deducted. Your order is not confirmed without real payment verification.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                onClick={() => setUnconfiguredModalOpen(false)}
+                className="w-full py-3 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs border border-amber-300"
+              >
+                BACK TO CHECKOUT
+              </button>
+              <Link
+                to="/cart"
+                className="w-full py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl text-center"
+              >
+                RETURN TO CART
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
