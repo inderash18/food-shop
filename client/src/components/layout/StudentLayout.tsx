@@ -127,7 +127,7 @@ export function StudentLayout() {
         </header>
 
         {/* Scrollable Page Content */}
-        <main className="flex-1 overflow-y-auto bg-[#f8f9fa] md:bg-white pb-32 md:pb-10">
+        <main className="flex-1 overflow-y-auto bg-white pb-32 md:pb-10">
           <div className="max-w-7xl mx-auto w-full pt-2 md:pt-4 md:px-8">
             <Outlet />
           </div>

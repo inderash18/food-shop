@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { ProductImage } from './ProductImage';
 import { Plus, Minus, Heart, Star } from 'lucide-react';
 import type { Product } from '../lib/types';
 import { formatINR } from '../lib/format';
@@ -31,41 +32,35 @@ export function ProductCard({ product }: { product: Product }) {
   };
 
   return (
-    <div className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-lg transition-shadow relative group">
+    <div className="bg-white rounded-[24px] overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative group">
       
       {/* Edge to Edge Image */}
-      <div className="relative h-[180px] w-full overflow-hidden bg-gray-50">
+      <div className="relative h-[130px] w-full overflow-hidden bg-gray-50/50">
         <Link to={`/menu/${product._id}`} className="block h-full w-full">
-          {product.imageUrl ? (
-            <img src={product.imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
-          ) : (
-            <div className="h-full w-full flex items-center justify-center bg-gray-50 transition-colors">
-              <span className="text-6xl drop-shadow-sm">{product.isVeg ? '🥗' : '🍔'}</span>
-            </div>
-          )}
+          <ProductImage src={product.imageUrl} alt={product.name} className="h-full w-full" />
         </Link>
         
         {/* Wishlist */}
         <button 
           onClick={handleToggleWishlist}
           className={cn(
-            "absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center transition-colors shadow-sm",
-            wishlisted ? "bg-white text-red-500" : "bg-white/90 backdrop-blur-sm text-gray-400 hover:text-gray-600"
+            "absolute top-2 right-2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-sm",
+            wishlisted ? "bg-white text-red-500" : "bg-white/80 backdrop-blur-sm text-gray-400 hover:text-gray-600"
           )}
         >
-          <Heart className="w-5 h-5" fill={wishlisted ? "currentColor" : "none"} />
+          <Heart className="w-4 h-4" fill={wishlisted ? "currentColor" : "none"} />
         </button>
 
         {/* Promo Badge */}
-        <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-lg text-primary-600 font-extrabold text-xs shadow-sm flex items-center gap-1">
-          <Star className="w-3 h-3 fill-primary-600" /> BESTSELLER
+        <div className="absolute bottom-2 left-2 bg-white/95 backdrop-blur-md px-2 py-0.5 rounded text-[#ff7e5f] font-extrabold text-[10px] shadow-sm flex items-center gap-1 uppercase tracking-tight">
+          <Star className="w-2.5 h-2.5 fill-[#ff7e5f]" /> BESTSELLER
         </div>
       </div>
 
-      <div className="p-4 flex flex-col">
+      <div className="p-3.5 flex flex-col">
         <div className="flex items-start justify-between gap-2 mb-1">
           <Link to={`/menu/${product._id}`} className="flex-1 min-w-0">
-            <h3 className="font-bold text-gray-900 text-[17px] leading-tight truncate">{product.name}</h3>
+            <h3 className="font-bold text-gray-900 text-[15px] leading-tight truncate">{product.name}</h3>
           </Link>
           <div className={cn("w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 mt-0.5", product.isVeg ? "border-green-500" : "border-red-500")}>
             <div className={cn("w-2 h-2 rounded-full", product.isVeg ? "bg-green-500" : "bg-red-500")}></div>

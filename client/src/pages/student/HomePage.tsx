@@ -30,7 +30,7 @@ export function HomePage() {
     <div className="space-y-8 pb-8 md:px-0 px-1 pt-1">
       
       {/* Mobile Search Bar (Hidden on desktop since it's in header) */}
-      <div className="md:hidden sticky top-[64px] z-10 bg-[#f8f9fa] pt-2 pb-4 px-3 -mx-4 shadow-[0_10px_10px_-10px_rgba(0,0,0,0.05)]">
+      <div className="md:hidden sticky top-[64px] z-10 bg-white pt-2 pb-4 px-3 -mx-4 shadow-[0_10px_10px_-10px_rgba(0,0,0,0.05)]">
         <div 
           className="relative bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden cursor-text h-[50px] flex items-center"
           onClick={() => navigate('/menu')}
@@ -47,17 +47,17 @@ export function HomePage() {
       </div>
 
       {/* Promotional Hero */}
-      <section className="px-3 md:px-0">
-        <div className="bg-gradient-to-r from-primary-500 to-[#ff7e5f] rounded-3xl p-6 text-white shadow-md relative overflow-hidden flex flex-col justify-between h-[160px] md:h-[200px]">
+      <section className="px-4 md:px-0 mt-2">
+        <div className="bg-gradient-to-r from-[#ff7e5f] to-[#feb47b] rounded-3xl p-6 text-white shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[160px]">
           <div className="relative z-10 max-w-[70%]">
             <h2 className="font-extrabold text-2xl md:text-3xl leading-tight mb-2 tracking-tight drop-shadow-sm">
               Craving something delicious?
             </h2>
-            <p className="font-medium text-white/90 text-sm mb-4 drop-shadow-sm">
+            <p className="font-medium text-white/90 text-[13px] mb-5 drop-shadow-sm leading-snug">
               Fresh food from your campus favorites, delivered fast.
             </p>
           </div>
-          <button onClick={() => navigate('/menu')} className="bg-white text-primary-600 font-bold text-sm px-6 py-2.5 rounded-full w-max shadow-sm relative z-10 active:scale-95 transition-transform">
+          <button onClick={() => navigate('/menu')} className="bg-white text-[#ff7e5f] font-extrabold text-[13px] px-6 py-2.5 rounded-full w-max shadow-sm relative z-10 active:scale-95 transition-transform uppercase tracking-wide">
             Order Now
           </button>
           
@@ -70,11 +70,11 @@ export function HomePage() {
       </section>
 
       {/* Categories (What's on your mind?) */}
-      <section className="px-3 md:px-0">
+      <section className="px-4 md:px-0 mt-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">What's on your mind?</h2>
         </div>
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none snap-x px-1">
+        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none snap-x -mx-4 px-4">
           {(categories?.categories ?? []).map((c) => (
             <Link
               key={c._id}

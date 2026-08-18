@@ -183,28 +183,44 @@ class PaymentGatewayService {
       }
 
       // Confirm Order atomically
-      payment.status = PAYMENT_STATUS.SUCCESS;
-      payment.verificationStatus = 'VERIFIED';
-      payment.verifiedAt = new Date();
-      await payment.save();
+      const updatedPayment = await Payment.findOneAndUpdate(
+        { _id: payment._id, verificationStatus: { $ne: 'VERIFIED' } },
+        {
+          $set: {
+            status: PAYMENT_STATUS.SUCCESS,
+            verificationStatus: 'VERIFIED',
+            verifiedAt: new Date(),
+            providerTransactionId: result.transactionId
+          }
+        },
+        { new: true }
+      );
+
+      if (!updatedPayment) {
+        // Another process already verified it
+        const alreadyVerified = await Payment.findById(payment._id);
+        const { confirmOrder } = await import('./order.service');
+        const confirmedOrder = await confirmOrder(String(payment.orderId));
+        return { payment: alreadyVerified!, order: confirmedOrder };
+      }
 
       const { confirmOrder } = await import('./order.service');
       const confirmedOrder = await confirmOrder(String(payment.orderId));
-      return { payment, order: confirmedOrder };
+      return { payment: updatedPayment, order: confirmedOrder };
     }
 
     if (result.status === PAYMENT_STATUS.FAILED) {
-      payment.status = result.status;
-      payment.verificationStatus = 'REJECTED';
-      await payment.save();
+      await Payment.updateOne(
+        { _id: payment._id },
+        { $set: { status: result.status, verificationStatus: 'REJECTED' } }
+      );
       const { failOrder } = await import('./order.service');
       await failOrder(String(payment.orderId));
       throw new PaymentError(`Payment ${result.status.toLowerCase()}`, 'PAYMENT_FAILED');
     }
 
     // Still pending
-    payment.verificationStatus = 'NOT_VERIFIED';
-    await payment.save();
+    await Payment.updateOne({ _id: payment._id }, { $set: { verificationStatus: 'NOT_VERIFIED' } });
     return { payment, order };
   }
 

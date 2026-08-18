@@ -5,6 +5,7 @@ import { cache } from './cache.service';
 import { recordAudit } from './audit.service';
 import { AUDIT_ACTION } from '../constants';
 import { INVENTORY_STATUS } from '../constants';
+import { getProductImageUrl } from '../utils/imageMapping';
 
 export interface ProductInput {
   name: string;
@@ -118,6 +119,10 @@ export async function createProduct(input: ProductInput, actorId: string, actorE
   if (existing) throw new ConflictError('A product with this name already exists');
   const category = await Category.findById(input.categoryId);
   if (!category) throw new NotFoundError('Category not found');
+
+  if (!input.imageUrl || input.imageUrl.trim() === '') {
+    input.imageUrl = getProductImageUrl(input.name, category.name);
+  }
 
   const product = await Product.create({
     ...input,

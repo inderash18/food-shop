@@ -19,8 +19,8 @@ export class MerchantUPIProvider implements PaymentProvider {
     if (!isConfigured) {
       throw new AppError(
         500,
-        'INTERNAL_ERROR',
-        'Merchant UPI Provider is not configured. Please provide actual Bank/UPI Gateway API credentials.'
+        'PAYMENT_PROVIDER_NOT_CONFIGURED',
+        'Merchant UPI Provider is not configured. Please provide actual Bank/UPI Gateway API credentials. Fake success is forbidden by strict policy.'
       );
     }
   }
