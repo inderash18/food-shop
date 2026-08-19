@@ -26,35 +26,29 @@ import { ToastContainer } from '../ui/Toast';
 
 const navGroups = [
   {
-    title: 'Manage',
+    title: 'Overview',
     items: [
       { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-      { to: '/admin/orders', label: 'Orders', icon: ClipboardList },
-      { to: '/admin/kitchen', label: 'Kitchen', icon: ChefHat },
     ],
   },
   {
-    title: 'Catalog',
+    title: 'Operations',
     items: [
+      { to: '/admin/orders', label: 'Orders', icon: ClipboardList },
       { to: '/admin/products', label: 'Products', icon: Package },
-      { to: '/admin/categories', label: 'Categories', icon: Tags },
-      { to: '/admin/inventory', label: 'Inventory', icon: Boxes },
-      { to: '/admin/coupons', label: 'Coupons', icon: TicketPercent },
     ],
   },
   {
-    title: 'Business',
+    title: 'Finance & Users',
     items: [
       { to: '/admin/users', label: 'Users', icon: Users },
       { to: '/admin/payments', label: 'Payments', icon: CreditCard },
-      { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
-      { to: '/admin/reports', label: 'Reports', icon: FileDown },
+      { to: '/admin/settlements', label: 'Settlements', icon: BarChart3 },
     ],
   },
   {
     title: 'System',
     items: [
-      { to: '/admin/audit-logs', label: 'Audit Logs', icon: ScrollText },
       { to: '/admin/settings', label: 'Settings', icon: Settings },
     ],
   },

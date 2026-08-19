@@ -1,5 +1,5 @@
 import { Schema, model, models, Types, Model } from 'mongoose';
-import { PAYMENT_STATUS, PaymentStatus } from '../constants';
+import { PAYMENT_STATUS, PaymentStatus, SETTLEMENT_STATUS, SettlementStatus } from '../constants';
 
 export interface IPayment {
   _id: Types.ObjectId;
@@ -15,6 +15,9 @@ export interface IPayment {
   failureReason?: string;
   merchantAccountId?: string;
   merchantUpiId?: string;
+  settlementStatus: SettlementStatus;
+  settlementDate?: Date;
+  settlementReferenceId?: string;
   verifiedAt?: Date;
   metadata?: Record<string, unknown>;
   idempotencyKey: string;
@@ -36,6 +39,9 @@ const paymentSchema = new Schema<IPayment>(
     failureReason: { type: String },
     merchantAccountId: { type: String },
     merchantUpiId: { type: String },
+    settlementStatus: { type: String, enum: Object.values(SETTLEMENT_STATUS), default: SETTLEMENT_STATUS.NOT_SETTLED, index: true },
+    settlementDate: { type: Date },
+    settlementReferenceId: { type: String },
     verifiedAt: { type: Date },
     metadata: { type: Schema.Types.Mixed },
     idempotencyKey: { type: String, required: true, unique: true, index: true },

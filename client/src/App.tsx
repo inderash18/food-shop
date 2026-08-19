@@ -112,6 +112,9 @@ const UserManagementPage = lazy(() =>
 const PaymentsPage = lazy(() =>
   import('./pages/admin/PaymentsPage').then((m) => ({ default: m.PaymentsPage }))
 );
+const SettlementsPage = lazy(() =>
+  import('./pages/admin/SettlementsPage').then((m) => ({ default: m.SettlementsPage }))
+);
 const AnalyticsPage = lazy(() =>
   import('./pages/admin/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage }))
 );
@@ -286,6 +289,7 @@ export default function App() {
           <Route path="coupons" element={<CouponsPage />} />
           <Route path="users" element={<UserManagementPage />} />
           <Route path="payments" element={<PaymentsPage />} />
+          <Route path="settlements" element={<SettlementsPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="audit-logs" element={<AuditLogsPage />} />

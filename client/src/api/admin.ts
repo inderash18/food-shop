@@ -103,10 +103,12 @@ export interface CategorySale {
 }
 
 export const adminApi = {
-  dashboard: () => apiGet<{ stats: DashboardStats }>('/api/admin/analytics/dashboard').then((d) => d.stats),
+  dashboard: () => apiGet<any>('/api/admin/dashboard/stats'),
+  revenueChart: () => apiGet<any>('/api/admin/dashboard/revenue-chart'),
+  transactions: () => apiGet<any>('/api/admin/transactions'),
+  settlements: () => apiGet<any>('/api/admin/settlements'),
 
   ordersByHour: () => apiGet<{ hours: HourRow[] }>('/api/admin/analytics/orders-by-hour').then((d) => d.hours),
-  revenueByDay: (days = 7) => apiGet<{ days: RevenueDay[] }>(`/api/admin/analytics/revenue-by-day?days=${days}`).then((d) => d.days),
   popularProducts: (limit = 10) => apiGet<{ products: PopularProduct[] }>(`/api/admin/analytics/popular-products?limit=${limit}`).then((d) => d.products),
   categorySales: () => apiGet<{ categories: CategorySale[] }>('/api/admin/analytics/category-sales').then((d) => d.categories),
   stockConsumption: (days = 7) => apiGet<{ products: { name: string; quantity: number }[] }>(`/api/admin/analytics/stock-consumption?days=${days}`).then((d) => d.products),

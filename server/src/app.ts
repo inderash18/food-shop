@@ -20,6 +20,7 @@ import reportsRoutes from './routes/reports.routes';
 import couponRoutes from './routes/coupon.routes';
 import settingsRoutes from './routes/settings.routes';
 import auditRoutes from './routes/audit.routes';
+import adminDashboardRoutes from './routes/admin.dashboard.routes';
 import { bookingRouter } from './routes/booking.routes';
 import { registerProvider } from './services/payment.service';
 import { PaytmProvider } from './services/providers/paytm.provider';
@@ -72,7 +73,8 @@ export function createApp(): express.Application {
     analyticsRoutes,
     reportsRoutes,
     couponRoutes,
-    auditRoutes
+    auditRoutes,
+    adminDashboardRoutes
   );
   app.use('/api/cart', cartRoutes);
   app.use('/api/checkout', checkoutRoutes);

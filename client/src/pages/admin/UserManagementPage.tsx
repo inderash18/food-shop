@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Search, UserPlus, Shield, Key, CheckCircle, XCircle, Eye } from 'lucide-react';
+import { Search, UserPlus, Key, Eye } from 'lucide-react';
 import { adminApi } from '../../api/admin';
 import type { User } from '../../lib/types';
 import { Modal } from '../../components/admin/Modal';
@@ -15,11 +15,10 @@ export function UserManagementPage() {
   const [page, setPage] = useState(1);
 
   // Modals
-  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
-  const [staffForm, setStaffForm] = useState({ name: '', email: '', studentId: '', role: 'STAFF' as 'STAFF' | 'ADMIN' });
-  const [createdStaffTempPass, setCreatedStaffTempPass] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [userForm, setUserForm] = useState({ name: '', email: '', studentId: '', role: 'ADMIN' as 'ADMIN' | 'STUDENT' });
+  const [createdTempPass, setCreatedTempPass] = useState<string | null>(null);
 
-  const [selectedUserDetail, setSelectedUserDetail] = useState<{ user: User; stats: { orderCount: number; totalSpend: number } } | null>(null);
   const [resetPassUserId, setResetPassUserId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
 
@@ -38,11 +37,11 @@ export function UserManagementPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
   });
 
-  const createStaffMutation = useMutation({
-    mutationFn: (body: typeof staffForm) => adminApi.createStaff(body),
+  const createUserMutation = useMutation({
+    mutationFn: (body: typeof userForm) => adminApi.createStaff(body), // Reuse staff api to create users
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      setCreatedStaffTempPass(res.temporaryPassword);
+      setCreatedTempPass(res.temporaryPassword);
     },
   });
 
@@ -55,114 +54,86 @@ export function UserManagementPage() {
     },
   });
 
-  const handleOpenDetail = async (id: string) => {
-    const detail = await adminApi.userDetail(id);
-    setSelectedUserDetail(detail);
-  };
-
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case 'SUPER_ADMIN':
-        return <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded-full">SUPER ADMIN</span>;
-      case 'ADMIN':
-        return <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full">ADMIN</span>;
-      case 'STAFF':
-        return <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full">KITCHEN STAFF</span>;
-      default:
-        return <span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">STUDENT</span>;
-    }
-  };
-
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">User & Staff Accounts</h1>
-          <p className="text-xs text-slate-500">Manage student profiles, kitchen staff permissions, and administrators</p>
+          <h1 className="text-2xl font-bold text-gray-900">Users</h1>
+          <p className="text-xs text-gray-500">Manage student profiles and administrators</p>
         </div>
         {currentUser?.role === 'SUPER_ADMIN' && (
           <button
             onClick={() => {
-              setStaffForm({ name: '', email: '', studentId: '', role: 'STAFF' });
-              setCreatedStaffTempPass(null);
-              setIsStaffModalOpen(true);
+              setUserForm({ name: '', email: '', studentId: '', role: 'ADMIN' });
+              setCreatedTempPass(null);
+              setIsCreateModalOpen(true);
             }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-colors w-fit"
           >
-            <UserPlus className="w-4 h-4" />
-            Add Staff / Admin
+            <UserPlus className="w-4 h-4" /> Add Admin
           </button>
         )}
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
         <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Search by Name, Email, or Student ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
         </div>
 
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className="border border-slate-200 rounded-xl text-xs py-2 px-3 focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-700 bg-white"
+          className="border border-gray-200 rounded-xl text-xs py-2 px-3 focus:ring-2 focus:ring-blue-500 focus:outline-none text-gray-700 bg-white"
         >
           <option value="">All Roles</option>
           <option value="STUDENT">Students</option>
-          <option value="STAFF">Staff</option>
           <option value="ADMIN">Admins</option>
           <option value="SUPER_ADMIN">Super Admins</option>
         </select>
       </div>
 
-      {/* Users Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         {isLoading ? (
-          <div className="p-8 text-center text-xs text-slate-400">Loading user directory...</div>
+          <div className="p-8 text-center text-xs text-gray-400">Loading user directory...</div>
         ) : data?.users && data.users.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
+            <table className="w-full text-left text-xs text-gray-700">
+              <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-200 uppercase tracking-wider">
                 <tr>
-                  <th className="px-4 py-3">User</th>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3 font-mono">College ID</th>
                   <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Joined</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-gray-100">
                 {data.users.map((user) => (
-                  <tr key={user._id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="font-bold text-slate-900">{user.name}</p>
-                        <p className="text-slate-400 text-[11px]">{user.email}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-mono font-medium text-slate-700">{user.studentId}</td>
+                  <tr key={user._id} className={`hover:bg-gray-50/70 transition-colors ${!user.isActive ? 'opacity-50' : ''}`}>
+                    <td className="px-4 py-3 font-bold text-gray-900">{user.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{user.email}</td>
+                    <td className="px-4 py-3 font-mono text-gray-700">{user.studentId}</td>
                     <td className="px-4 py-3">
                       {currentUser?.role === 'SUPER_ADMIN' && user._id !== currentUser._id ? (
                         <select
                           value={user.role}
                           onChange={(e) => setRoleMutation.mutate({ id: user._id, role: e.target.value })}
-                          className="border border-slate-200 rounded-lg text-[11px] py-1 px-2 font-semibold bg-slate-50"
+                          className="border border-gray-200 rounded-lg text-[11px] py-1 px-2 font-semibold bg-gray-50"
                         >
                           <option value="STUDENT">STUDENT</option>
-                          <option value="STAFF">STAFF</option>
                           <option value="ADMIN">ADMIN</option>
                           <option value="SUPER_ADMIN">SUPER_ADMIN</option>
                         </select>
                       ) : (
-                        getRoleBadge(user.role)
+                        <span className="font-bold text-[10px] bg-gray-100 px-2 py-0.5 rounded-full">{user.role}</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -171,33 +142,21 @@ export function UserManagementPage() {
                       ) : (
                         <button
                           onClick={() => toggleActiveMutation.mutate({ id: user._id, isActive: !user.isActive })}
-                          className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                            user.isActive
-                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                              : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                            user.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
                           }`}
                         >
-                          {user.isActive ? 'ACTIVE' : 'DEACTIVATED'}
+                          {user.isActive ? 'ACTIVE' : 'BLOCKED'}
                         </button>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-400">
-                      {new Date(user.createdAt).toLocaleDateString()}
-                    </td>
                     <td className="px-4 py-3 text-right space-x-1">
                       <button
-                        onClick={() => handleOpenDetail(user._id)}
-                        className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors"
-                        title="View Stats"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <button
                         onClick={() => setResetPassUserId(user._id)}
-                        className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors"
+                        className="p-1.5 hover:bg-gray-100 text-gray-600 rounded-lg transition-colors inline-flex items-center gap-1 border border-gray-200"
                         title="Reset Password"
                       >
-                        <Key className="w-3.5 h-3.5" />
+                        <Key className="w-3.5 h-3.5" /> Reset Pass
                       </button>
                     </td>
                   </tr>
@@ -206,184 +165,64 @@ export function UserManagementPage() {
             </table>
           </div>
         ) : (
-          <div className="p-12 text-center text-xs text-slate-400">No users found</div>
+          <div className="p-12 text-center text-xs text-gray-400">No users found</div>
         )}
       </div>
 
-      {/* User Stats Modal */}
-      {selectedUserDetail && (
-        <Modal
-          open={Boolean(selectedUserDetail)}
-          onClose={() => setSelectedUserDetail(null)}
-          title={`User Profile — ${selectedUserDetail.user.name}`}
-        >
-          <div className="space-y-4 text-xs">
-            <div className="bg-slate-50 p-4 rounded-xl space-y-2">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Email:</span>
-                <span className="font-semibold text-slate-900">{selectedUserDetail.user.email}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">College ID:</span>
-                <span className="font-mono font-semibold text-slate-900">{selectedUserDetail.user.studentId}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Role:</span>
-                <div>{getRoleBadge(selectedUserDetail.user.role)}</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-blue-50 p-3.5 rounded-xl text-center">
-                <p className="text-[11px] text-blue-600 font-bold uppercase">Total Orders</p>
-                <p className="text-xl font-bold text-blue-950 mt-1">{selectedUserDetail.stats.orderCount}</p>
-              </div>
-              <div className="bg-emerald-50 p-3.5 rounded-xl text-center">
-                <p className="text-[11px] text-emerald-600 font-bold uppercase">Total Spend</p>
-                <p className="text-xl font-bold text-emerald-950 mt-1">₹{selectedUserDetail.stats.totalSpend}</p>
-              </div>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* Create Staff Modal */}
-      {isStaffModalOpen && (
-        <Modal
-          open={isStaffModalOpen}
-          onClose={() => setIsStaffModalOpen(false)}
-          title="Create Staff / Admin Account"
-        >
-          {createdStaffTempPass ? (
+      {isCreateModalOpen && (
+        <Modal open={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Create Account">
+          {createdTempPass ? (
             <div className="space-y-4 text-xs">
               <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl space-y-2">
-                <p className="text-emerald-800 font-bold">Staff Account Created Successfully!</p>
-                <p className="text-emerald-700">Please securely share these temporary credentials with the staff member:</p>
-                <div className="bg-white p-2.5 rounded-lg border font-mono font-bold text-slate-900">
-                  Temporary Password: {createdStaffTempPass}
+                <p className="text-emerald-800 font-bold">Account Created Successfully!</p>
+                <div className="bg-white p-2.5 rounded-lg border font-mono font-bold text-gray-900">
+                  Temporary Password: {createdTempPass}
                 </div>
               </div>
-              <button
-                onClick={() => setIsStaffModalOpen(false)}
-                className="w-full py-2 bg-slate-900 text-white rounded-xl font-semibold"
-              >
+              <button onClick={() => setIsCreateModalOpen(false)} className="w-full py-2 bg-gray-900 text-white rounded-xl font-semibold">
                 Done
               </button>
             </div>
           ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                createStaffMutation.mutate(staffForm);
-              }}
-              className="space-y-4 text-xs"
-            >
+            <form onSubmit={(e) => { e.preventDefault(); createUserMutation.mutate(userForm); }} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={staffForm.name}
-                  onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
-                  className="w-full p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
+                <label className="block text-gray-700 font-bold mb-1">Full Name</label>
+                <input type="text" required value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} className="w-full p-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" />
               </div>
-
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={staffForm.email}
-                  onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
-                  className="w-full p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
+                <label className="block text-gray-700 font-bold mb-1">Email Address</label>
+                <input type="email" required value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} className="w-full p-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" />
               </div>
-
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Staff / Employee ID</label>
-                <input
-                  type="text"
-                  required
-                  value={staffForm.studentId}
-                  onChange={(e) => setStaffForm({ ...staffForm, studentId: e.target.value })}
-                  className="w-full p-2 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
+                <label className="block text-gray-700 font-bold mb-1">College ID</label>
+                <input type="text" required value={userForm.studentId} onChange={(e) => setUserForm({ ...userForm, studentId: e.target.value })} className="w-full p-2 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none" />
               </div>
-
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Assigned Role</label>
-                <select
-                  value={staffForm.role}
-                  onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value as 'STAFF' | 'ADMIN' })}
-                  className="w-full p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                >
-                  <option value="STAFF">Kitchen Staff (Order processing only)</option>
-                  <option value="ADMIN">Administrator (Full catalog, orders & reports access)</option>
+                <label className="block text-gray-700 font-bold mb-1">Assigned Role</label>
+                <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value as 'ADMIN' | 'STUDENT' })} className="w-full p-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                  <option value="STUDENT">Student</option>
+                  <option value="ADMIN">Administrator</option>
                 </select>
               </div>
-
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsStaffModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createStaffMutation.isPending}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm transition-colors disabled:opacity-50"
-                >
-                  Create Account
-                </button>
+              <div className="pt-4 border-t border-gray-100 flex justify-end gap-2">
+                <button type="button" onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 border border-gray-200 rounded-xl font-semibold text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+                <button type="submit" disabled={createUserMutation.isPending} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm transition-colors disabled:opacity-50">Create Account</button>
               </div>
             </form>
           )}
         </Modal>
       )}
 
-      {/* Reset Password Modal */}
       {resetPassUserId && (
-        <Modal
-          open={Boolean(resetPassUserId)}
-          onClose={() => setResetPassUserId(null)}
-          title="Reset User Password"
-        >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              resetPasswordMutation.mutate({ id: resetPassUserId, newPassword });
-            }}
-            className="space-y-4 text-xs"
-          >
+        <Modal open={Boolean(resetPassUserId)} onClose={() => setResetPassUserId(null)} title="Reset Password">
+          <form onSubmit={(e) => { e.preventDefault(); resetPasswordMutation.mutate({ id: resetPassUserId, newPassword }); }} className="space-y-4 text-xs">
             <div>
-              <label className="block text-slate-700 font-bold mb-1">New Password (Min 8 chars)</label>
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
+              <label className="block text-gray-700 font-bold mb-1">New Password (Min 8 chars)</label>
+              <input type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" />
             </div>
-            <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setResetPassUserId(null)}
-                className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={resetPasswordMutation.isPending}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm transition-colors disabled:opacity-50"
-              >
-                Reset Password
-              </button>
+            <div className="pt-4 border-t border-gray-100 flex justify-end gap-2">
+              <button type="button" onClick={() => setResetPassUserId(null)} className="px-4 py-2 border border-gray-200 rounded-xl font-semibold text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+              <button type="submit" disabled={resetPasswordMutation.isPending} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm transition-colors disabled:opacity-50">Reset Password</button>
             </div>
           </form>
         </Modal>

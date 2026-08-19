@@ -32,6 +32,15 @@ export const PAYMENT_STATUS = {
 
 export type PaymentStatus = (typeof PAYMENT_STATUS)[keyof typeof PAYMENT_STATUS];
 
+export const SETTLEMENT_STATUS = {
+  NOT_SETTLED: 'NOT_SETTLED',
+  PROCESSING: 'PROCESSING',
+  SETTLED: 'SETTLED',
+  FAILED: 'FAILED',
+} as const;
+
+export type SettlementStatus = (typeof SETTLEMENT_STATUS)[keyof typeof SETTLEMENT_STATUS];
+
 export const INVENTORY_STATUS = {
   IN_STOCK: 'IN_STOCK',
   LOW_STOCK: 'LOW_STOCK',
