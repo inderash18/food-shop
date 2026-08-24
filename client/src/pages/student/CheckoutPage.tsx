@@ -62,19 +62,19 @@ export function CheckoutPage() {
   const [cookingNotes] = useState(stateNotes);
   const [unconfiguredModalOpen, setUnconfiguredModalOpen] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [paymentPhase, setPaymentPhase] = useState<'IDLE' | 'INITIATING' | 'CHECKOUT_OPEN' | 'VERIFYING' | 'SUCCESS' | 'CANCELLED' | 'FAILED'>('IDLE');
 
   const checkoutIdRef = useRef<string>(
     sessionStorage.getItem('checkoutRequestId') ?? `chk_${crypto.randomUUID()}`
   );
 
   const handleRazorpaySuccess = async (response: RazorpayPaymentSuccessResponse, paymentId: string) => {
-    setIsVerifying(true);
+    setPaymentPhase('VERIFYING');
     try {
       toast.info('Verifying payment signature with server...');
       
-      // Call POST /api/verify-payment with order_id, payment_id, and signature
-      const verifyRes = await apiClient.post('/api/verify-payment', {
+      // Call POST /api/payment/verify with order_id, payment_id, and signature
+      const verifyRes = await apiClient.post('/api/payment/verify', {
         razorpay_order_id: response.razorpay_order_id,
         razorpay_payment_id: response.razorpay_payment_id,
         razorpay_signature: response.razorpay_signature,
@@ -82,28 +82,31 @@ export function CheckoutPage() {
       });
 
       if (verifyRes.data?.success) {
+        setPaymentPhase('SUCCESS');
         toast.success('Payment verified successfully! Pre-order confirmed.');
         sessionStorage.removeItem('checkoutRequestId');
         sessionStorage.removeItem('paymentId');
         sessionStorage.removeItem('providerPaymentId');
         sessionStorage.removeItem('paymentAmount');
         clearCart();
-        navigate('/order-confirmation', { replace: true });
+        setTimeout(() => {
+          navigate('/order-confirmation', { replace: true });
+        }, 1200);
       } else {
         throw new Error(verifyRes.data?.error?.message || 'Payment verification failed');
       }
     } catch (err: any) {
+      setPaymentPhase('FAILED');
       const msg = getErrorMessage(err) || 'Signature verification failed. Payment not confirmed.';
       setCheckoutError(msg);
       toast.error(msg);
-    } finally {
-      setIsVerifying(false);
     }
   };
 
   const checkout = useMutation({
     mutationFn: () => {
       setCheckoutError(null);
+      setPaymentPhase('INITIATING');
       return apiPost<CheckoutResponse>('/api/checkout', {
         items: cart.items.map((i) => ({
           productId: i.productId,
@@ -135,6 +138,7 @@ export function CheckoutPage() {
         const razorpayOrderId = providerPaymentId || data.checkout.paymentIntent.metadata?.razorpayOrderId;
         
         if (razorpayOrderId) {
+          setPaymentPhase('CHECKOUT_OPEN');
           openRazorpayCheckout({
             orderId: razorpayOrderId,
             amount: Math.round(data.checkout.paymentIntent.amount * 100),
@@ -150,9 +154,11 @@ export function CheckoutPage() {
               handleRazorpaySuccess(resp, data.checkout.paymentIntent.paymentId);
             },
             onDismiss: () => {
-              toast.info('Payment window closed. You can complete your payment anytime.');
+              setPaymentPhase('CANCELLED');
+              toast.info('Payment cancelled. You can try again.');
             },
             onError: (err) => {
+              setPaymentPhase('FAILED');
               const msg = err?.description || err?.message || 'Payment failed. Please try again.';
               setCheckoutError(msg);
               toast.error(msg);
@@ -169,6 +175,7 @@ export function CheckoutPage() {
       }
     },
     onError: (err: any) => {
+      setPaymentPhase('FAILED');
       const code = err.response?.data?.error?.code;
       const message = getErrorMessage(err);
 
@@ -338,14 +345,40 @@ export function CheckoutPage() {
 
         <button
           onClick={() => checkout.mutate()}
-          disabled={checkout.isPending}
-          className="w-full py-4 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-sm sm:text-base rounded-2xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50 border border-amber-300"
+          disabled={paymentPhase === 'INITIATING' || paymentPhase === 'CHECKOUT_OPEN' || paymentPhase === 'VERIFYING' || paymentPhase === 'SUCCESS'}
+          className="w-full py-4 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-sm sm:text-base rounded-2xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-60 border border-amber-300"
         >
-          {checkout.isPending ? (
+          {paymentPhase === 'INITIATING' && (
             <>
-              <Loader2 className="w-5 h-5 animate-spin text-amber-950" /> Preparing secure payment...
+              <Loader2 className="w-5 h-5 animate-spin text-amber-950" /> Creating secure payment...
             </>
-          ) : (
+          )}
+          {paymentPhase === 'CHECKOUT_OPEN' && (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin text-amber-950" /> Complete payment in Razorpay...
+            </>
+          )}
+          {paymentPhase === 'VERIFYING' && (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin text-amber-950" /> Verifying payment with server...
+            </>
+          )}
+          {paymentPhase === 'SUCCESS' && (
+            <>
+              <ShieldCheck className="w-5 h-5 text-amber-950" /> Payment successful • Order confirmed
+            </>
+          )}
+          {paymentPhase === 'FAILED' && (
+            <>
+              <Lock className="w-4 h-4" /> Payment failed • Try again • <span className="tabular-nums">{formatINR(subtotal)}</span>
+            </>
+          )}
+          {paymentPhase === 'CANCELLED' && (
+            <>
+              <Lock className="w-4 h-4" /> Payment cancelled • Pay <span className="tabular-nums">{formatINR(subtotal)}</span>
+            </>
+          )}
+          {paymentPhase === 'IDLE' && (
             <>
               <Lock className="w-4 h-4" /> PAY & PLACE PRE-ORDER • <span className="tabular-nums">{formatINR(subtotal)}</span>
             </>

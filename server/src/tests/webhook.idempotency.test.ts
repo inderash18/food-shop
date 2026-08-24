@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { confirmOrder } from '../services/order.service';
 import { Order, Product, Notification, Cart } from '../models';
@@ -7,6 +8,12 @@ import * as auditService from '../services/audit.service';
 describe('Payment Webhook Idempotency', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(mongoose, 'startSession').mockResolvedValue({
+      startTransaction: vi.fn(),
+      commitTransaction: vi.fn(),
+      abortTransaction: vi.fn(),
+      endSession: vi.fn(),
+    } as any);
   });
 
   it('handles duplicate payment webhook delivery without double-committing inventory', async () => {
@@ -35,7 +42,9 @@ describe('Payment Webhook Idempotency', () => {
       }
       return null; // For the second call, it's no longer PAYMENT_PENDING
     });
-    vi.spyOn(Order, 'findById').mockImplementation(async () => orderState as any);
+    vi.spyOn(Order, 'findById').mockImplementation(() => ({
+      session: vi.fn().mockResolvedValue(orderState),
+    } as any));
     const updateProductSpy = vi.spyOn(Product, 'updateOne').mockResolvedValue({
       acknowledged: true,
       modifiedCount: 1,
