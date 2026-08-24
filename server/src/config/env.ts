@@ -27,9 +27,11 @@ export const env = {
     .filter(Boolean),
   requireDomainCheck: bool(process.env.REQUIRE_DOMAIN_CHECK, false),
 
-  paymentProvider: process.env.PAYMENT_PROVIDER ?? 'merchant-upi',
-  paymentKeyId: process.env.PAYMENT_KEY_ID ?? '',
-  paymentKeySecret: process.env.PAYMENT_KEY_SECRET ?? '',
+  paymentProvider: process.env.PAYMENT_PROVIDER ?? 'razorpay',
+  paymentKeyId: process.env.PAYMENT_KEY_ID ?? process.env.RAZORPAY_KEY_ID ?? '',
+  paymentKeySecret: process.env.PAYMENT_KEY_SECRET ?? process.env.RAZORPAY_KEY_SECRET ?? '',
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? process.env.PAYMENT_KEY_ID ?? '',
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? process.env.PAYMENT_KEY_SECRET ?? '',
   webhookSecret: process.env.WEBHOOK_SECRET ?? 'dev-webhook-secret',
 
   shopName: process.env.SHOP_NAME ?? 'College Food Shop',

@@ -22,9 +22,13 @@ import settingsRoutes from './routes/settings.routes';
 import auditRoutes from './routes/audit.routes';
 import adminDashboardRoutes from './routes/admin.dashboard.routes';
 import { bookingRouter } from './routes/booking.routes';
+import razorpayRoutes from './routes/razorpay.routes';
 import { registerProvider } from './services/payment.service';
 import { PaytmProvider } from './services/providers/paytm.provider';
 import { MerchantUPIProvider } from './services/providers/merchant-upi.provider';
+import { PhonePeProvider } from './services/providers/phonepe.provider';
+import { RazorpayProvider } from './services/providers/razorpay.provider';
+import { validateRazorpayConfig } from './config/razorpay';
 import { logger } from './config/logger';
 
 export function createApp(): express.Application {
@@ -79,6 +83,7 @@ export function createApp(): express.Application {
   app.use('/api/cart', cartRoutes);
   app.use('/api/checkout', checkoutRoutes);
   app.use('/api/payments', paymentRoutes);
+  app.use('/api', razorpayRoutes);
   app.use('/api/orders', orderRoutes);
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/settings', settingsRoutes);
@@ -87,8 +92,12 @@ export function createApp(): express.Application {
   app.use(errorHandler);
 
   // Register payment providers
+  registerProvider(new RazorpayProvider());
+  registerProvider(new PhonePeProvider());
   registerProvider(new PaytmProvider());
   registerProvider(new MerchantUPIProvider());
+
+  validateRazorpayConfig();
 
   return app;
 }

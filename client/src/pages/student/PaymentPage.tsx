@@ -21,6 +21,8 @@ import apiClient, { getErrorMessage, getErrorCode } from '../../api/client';
 import { formatINR } from '../../lib/format';
 import { toast } from '../../components/ui/Toast';
 import { cn } from '../../lib/utils';
+import { openRazorpayCheckout } from '../../lib/razorpay';
+import { useAuthStore } from '../../stores/auth';
 
 const ORDER_CONFIRMED = 'ORDER_CONFIRMED';
 const PAYMENT_SUCCESS = 'SUCCESS';
@@ -42,8 +44,10 @@ type PaymentUIState =
 
 export function PaymentPage() {
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
 
   const [paymentId] = useState(() => sessionStorage.getItem('paymentId') ?? '');
+  const [providerPaymentId] = useState(() => sessionStorage.getItem('providerPaymentId') ?? '');
   const [amount] = useState(() => Number(sessionStorage.getItem('paymentAmount') ?? 0));
   const [orderNumber] = useState(() => sessionStorage.getItem('orderNumber') ?? '');
   const [orderId] = useState(() => sessionStorage.getItem('orderId') ?? '');
@@ -217,6 +221,82 @@ export function PaymentPage() {
   const seconds = timeLeft % 60;
   const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  const handleOpenRazorpay = () => {
+    const rzpOrderId = providerPaymentId && providerPaymentId.startsWith('order_') ? providerPaymentId : undefined;
+    if (rzpOrderId) {
+      launchRazorpayModal(rzpOrderId);
+    } else {
+      setIsChecking(true);
+      apiClient
+        .post('/api/create-order', {
+          amount: Math.round(amount * 100),
+          currency: 'INR',
+          receipt: `rcpt_${(orderId || paymentId).slice(-8)}`,
+        })
+        .then((res) => {
+          if (res.data?.order_id) {
+            sessionStorage.setItem('providerPaymentId', res.data.order_id);
+            launchRazorpayModal(res.data.order_id);
+          } else {
+            toast.error('Failed to create Razorpay order');
+          }
+        })
+        .catch((err) => {
+          toast.error(getErrorMessage(err) || 'Failed to initialize Razorpay checkout');
+        })
+        .finally(() => {
+          setIsChecking(false);
+        });
+    }
+  };
+
+  const launchRazorpayModal = (rzpOrderId: string) => {
+    openRazorpayCheckout({
+      orderId: rzpOrderId,
+      amount: Math.round(amount * 100),
+      currency: 'INR',
+      name: 'Campus Food Shop',
+      description: `Order #${orderNumber || 'Pre-Order'}`,
+      prefill: {
+        name: user?.name,
+        email: user?.email,
+        contact: user?.phone,
+      },
+      onSuccess: async (resp) => {
+        try {
+          toast.info('Verifying payment signature with server...');
+          const verifyRes = await apiClient.post('/api/verify-payment', {
+            razorpay_order_id: resp.razorpay_order_id,
+            razorpay_payment_id: resp.razorpay_payment_id,
+            razorpay_signature: resp.razorpay_signature,
+            paymentId,
+          });
+
+          if (verifyRes.data?.success) {
+            stopPolling();
+            setUiState('SUCCESS');
+            sessionStorage.removeItem('paymentId');
+            sessionStorage.removeItem('providerPaymentId');
+            toast.success('Payment verified successfully! Pre-order confirmed.');
+            setTimeout(() => {
+              navigate('/order-confirmation', { replace: true });
+            }, 1500);
+          } else {
+            toast.error('Payment signature mismatch.');
+          }
+        } catch (err: any) {
+          toast.error(getErrorMessage(err) || 'Signature verification failed.');
+        }
+      },
+      onDismiss: () => {
+        toast.info('Payment modal dismissed');
+      },
+      onError: (err) => {
+        toast.error(err?.description || 'Payment failed. Please retry.');
+      },
+    });
+  };
 
   return (
     <div className="max-w-md mx-auto space-y-5 pt-4 pb-16 px-3 sm:px-0 antialiased">
@@ -452,24 +532,26 @@ export function PaymentPage() {
               </div>
             </div>
 
-            {statusMessage && (
-              <div className="p-2.5 rounded-xl bg-amber-900/80 border border-amber-700 text-amber-100 text-xs font-bold">
-                {statusMessage}
-              </div>
-            )}
+            <button
+              onClick={handleOpenRazorpay}
+              disabled={isChecking}
+              className="w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-60 border border-amber-300"
+            >
+              <Lock className="h-4 w-4 text-amber-950" /> Pay with Razorpay (UPI, Card, NetBanking)
+            </button>
 
             <button
               onClick={() => performVerification(true)}
               disabled={isChecking}
-              className="w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-60 border border-amber-300"
+              className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
             >
               {isChecking ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin text-amber-950" /> Verifying Payment Status...
+                  <Loader2 className="h-4 w-4 animate-spin text-amber-200" /> Verifying Status...
                 </>
               ) : (
                 <>
-                  <RefreshCcw className="h-4 w-4 text-amber-950" /> Check Payment Status
+                  <RefreshCcw className="h-4 w-4 text-amber-200" /> Check Payment Status Manually
                 </>
               )}
             </button>

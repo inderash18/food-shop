@@ -8,9 +8,11 @@ import { startJobs } from './jobs/reservationExpiry';
 import { startPaymentReconciliationJob } from './jobs/paymentReconciliation.job';
 
 import { validatePaytmConfig } from './config/paytm';
+import { validatePhonePeConfig } from './config/phonepe';
 
 async function main(): Promise<void> {
   validatePaytmConfig();
+  validatePhonePeConfig();
   await connectDatabase();
 
   const app = createApp();

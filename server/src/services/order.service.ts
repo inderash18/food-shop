@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import mongoose, { Types, ClientSession } from 'mongoose';
 import { Order, Product, Cart, ShopSettings, Coupon, IOrder } from '../models';
 import {
   ORDER_STATUS,
@@ -233,7 +233,7 @@ export async function initiateCheckout(
   };
 }
 
-export async function reserveStock(order: { items: { productId: unknown; quantity: number }[] }): Promise<void> {
+export async function reserveStock(order: { items: { productId: unknown; quantity: number }[] }, session?: ClientSession): Promise<void> {
   for (const item of order.items) {
     const res = await Product.updateOne(
       {
@@ -241,7 +241,8 @@ export async function reserveStock(order: { items: { productId: unknown; quantit
         isActive: true,
         $expr: { $gte: [{ $subtract: ['$stock', '$reservedStock'] }, item.quantity] },
       },
-      { $inc: { reservedStock: item.quantity } }
+      { $inc: { reservedStock: item.quantity } },
+      { session }
     );
     if (res.modifiedCount === 0) {
       throw new OutOfStockError('One or more items went out of stock during checkout');
@@ -249,49 +250,63 @@ export async function reserveStock(order: { items: { productId: unknown; quantit
   }
 }
 
-export async function commitStock(order: { items: { productId: unknown; quantity: number }[] }): Promise<void> {
+export async function commitStock(order: { items: { productId: unknown; quantity: number }[] }, session?: ClientSession): Promise<void> {
   for (const item of order.items) {
     await Product.updateOne(
       { _id: item.productId },
-      { $inc: { stock: -item.quantity, reservedStock: -item.quantity, totalOrders: item.quantity } }
+      { $inc: { stock: -item.quantity, reservedStock: -item.quantity, totalOrders: item.quantity } },
+      { session }
     );
   }
 }
 
-export async function releaseStock(order: { items: { productId: unknown; quantity: number }[] }): Promise<void> {
+export async function releaseStock(order: { items: { productId: unknown; quantity: number }[] }, session?: ClientSession): Promise<void> {
   for (const item of order.items) {
     await Product.updateOne(
       { _id: item.productId, reservedStock: { $gte: item.quantity } },
-      { $inc: { reservedStock: -item.quantity } }
+      { $inc: { reservedStock: -item.quantity } },
+      { session }
     );
   }
 }
 
 export async function confirmOrder(orderId: string): Promise<IOrder> {
-  const order = await Order.findById(orderId);
-  if (!order) throw new NotFoundError('Order not found');
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const order = await Order.findById(orderId).session(session);
+    if (!order) throw new NotFoundError('Order not found');
 
-  if (order.status === ORDER_STATUS.ORDER_CONFIRMED || order.paymentStatus === PAYMENT_STATUS.SUCCESS) {
+    if (order.status === ORDER_STATUS.ORDER_CONFIRMED || order.paymentStatus === PAYMENT_STATUS.SUCCESS) {
+      await session.commitTransaction();
+      return order;
+    }
+
+    await commitStock(order, session);
+    order.status = ORDER_STATUS.ORDER_CONFIRMED;
+    order.paymentStatus = PAYMENT_STATUS.SUCCESS;
+    await order.save({ session });
+    
+    await session.commitTransaction();
+
+    cache.delByPrefix('products');
+    emit('orderConfirmed', { orderId: String(order._id), orderNumber: order.orderNumber, tokenNumber: order.tokenNumber });
+
+    await notifyUser({
+      userId: String(order.userId),
+      title: `Pre-Order #${order.tokenNumber} Confirmed!`,
+      body: `Your pre-order is confirmed. Pick up at Counter 2 when ready.`,
+      type: 'order_status',
+      data: { orderId: String(order._id), orderNumber: order.orderNumber, tokenNumber: order.tokenNumber },
+    });
+
     return order;
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
   }
-
-  await commitStock(order);
-  order.status = ORDER_STATUS.ORDER_CONFIRMED;
-  order.paymentStatus = PAYMENT_STATUS.SUCCESS;
-  await order.save();
-
-  cache.delByPrefix('products');
-  emit('orderConfirmed', { orderId: String(order._id), orderNumber: order.orderNumber, tokenNumber: order.tokenNumber });
-
-  await notifyUser({
-    userId: String(order.userId),
-    title: `Pre-Order #${order.tokenNumber} Confirmed!`,
-    body: `Your pre-order is confirmed. Pick up at Counter 2 when ready.`,
-    type: 'order_status',
-    data: { orderId: String(order._id), orderNumber: order.orderNumber, tokenNumber: order.tokenNumber },
-  });
-
-  return order;
 }
 
 export async function cancelOrder(orderId: string, userId: string, isStaffOrAdmin = false): Promise<IOrder> {

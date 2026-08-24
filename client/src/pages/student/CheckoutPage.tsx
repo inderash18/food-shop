@@ -23,6 +23,9 @@ import { formatINR } from '../../lib/format';
 import { toast } from '../../components/ui/Toast';
 import { cn } from '../../lib/utils';
 
+import { openRazorpayCheckout } from '../../lib/razorpay';
+import apiClient from '../../api/client';
+
 interface CheckoutResponse {
   checkout: {
     order: {
@@ -36,7 +39,13 @@ interface CheckoutResponse {
       serviceFee: number;
       total: number;
     };
-    paymentIntent: { paymentId: string; provider: string; amount: number; metadata?: any; providerPaymentId?: string };
+    paymentIntent: {
+      paymentId: string;
+      provider: string;
+      amount: number;
+      metadata?: any;
+      providerPaymentId?: string;
+    };
     requiresVerification: boolean;
   };
 }
@@ -45,7 +54,7 @@ export function CheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
-  const { cart, itemCount, subtotal } = useCart();
+  const { cart, itemCount, subtotal, clearCart } = useCart();
 
   const stateNotes = (location.state as any)?.notes || '';
   const stateCoupon = (location.state as any)?.coupon || '';
@@ -53,10 +62,44 @@ export function CheckoutPage() {
   const [cookingNotes] = useState(stateNotes);
   const [unconfiguredModalOpen, setUnconfiguredModalOpen] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const checkoutIdRef = useRef<string>(
     sessionStorage.getItem('checkoutRequestId') ?? `chk_${crypto.randomUUID()}`
   );
+
+  const handleRazorpaySuccess = async (response: RazorpayPaymentSuccessResponse, paymentId: string) => {
+    setIsVerifying(true);
+    try {
+      toast.info('Verifying payment signature with server...');
+      
+      // Call POST /api/verify-payment with order_id, payment_id, and signature
+      const verifyRes = await apiClient.post('/api/verify-payment', {
+        razorpay_order_id: response.razorpay_order_id,
+        razorpay_payment_id: response.razorpay_payment_id,
+        razorpay_signature: response.razorpay_signature,
+        paymentId,
+      });
+
+      if (verifyRes.data?.success) {
+        toast.success('Payment verified successfully! Pre-order confirmed.');
+        sessionStorage.removeItem('checkoutRequestId');
+        sessionStorage.removeItem('paymentId');
+        sessionStorage.removeItem('providerPaymentId');
+        sessionStorage.removeItem('paymentAmount');
+        clearCart();
+        navigate('/order-confirmation', { replace: true });
+      } else {
+        throw new Error(verifyRes.data?.error?.message || 'Payment verification failed');
+      }
+    } catch (err: any) {
+      const msg = getErrorMessage(err) || 'Signature verification failed. Payment not confirmed.';
+      setCheckoutError(msg);
+      toast.error(msg);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const checkout = useMutation({
     mutationFn: () => {
@@ -83,7 +126,47 @@ export function CheckoutPage() {
       sessionStorage.setItem('orderId', data.checkout.order._id);
       sessionStorage.setItem('orderNumber', data.checkout.order.orderNumber);
 
-      navigate('/payment', { replace: true });
+      const provider = data.checkout.paymentIntent.provider;
+      const providerPaymentId = data.checkout.paymentIntent.providerPaymentId;
+      const redirectUrl = data.checkout.paymentIntent.metadata?.redirectUrl;
+
+      // If Razorpay provider or Razorpay order ID is returned, open Razorpay modal directly
+      if (provider === 'razorpay' || (providerPaymentId && providerPaymentId.startsWith('order_'))) {
+        const razorpayOrderId = providerPaymentId || data.checkout.paymentIntent.metadata?.razorpayOrderId;
+        
+        if (razorpayOrderId) {
+          openRazorpayCheckout({
+            orderId: razorpayOrderId,
+            amount: Math.round(data.checkout.paymentIntent.amount * 100),
+            currency: 'INR',
+            name: 'Campus Food Shop',
+            description: `Order #${data.checkout.order.orderNumber}`,
+            prefill: {
+              name: user?.name,
+              email: user?.email,
+              contact: user?.phone,
+            },
+            onSuccess: (resp) => {
+              handleRazorpaySuccess(resp, data.checkout.paymentIntent.paymentId);
+            },
+            onDismiss: () => {
+              toast.info('Payment window closed. You can complete your payment anytime.');
+            },
+            onError: (err) => {
+              const msg = err?.description || err?.message || 'Payment failed. Please try again.';
+              setCheckoutError(msg);
+              toast.error(msg);
+            },
+          });
+          return;
+        }
+      }
+
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+      } else {
+        navigate('/payment', { replace: true });
+      }
     },
     onError: (err: any) => {
       const code = err.response?.data?.error?.code;

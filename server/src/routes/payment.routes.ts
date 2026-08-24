@@ -24,5 +24,7 @@ router.get('/status/:paymentId', requireAuth(), getPaymentStatus);
 router.post('/:paymentId/refund', requireAuth(), requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN), requestRefund);
 
 router.post('/webhooks/paytm', express.raw({ type: '*/*', limit: '256kb' }), webhookHandler('paytm'));
+router.post('/webhooks/phonepe', express.json({ limit: '256kb' }), webhookHandler('phonepe'));
+router.post('/webhooks/razorpay', express.raw({ type: '*/*', limit: '256kb' }), webhookHandler('razorpay'));
 
 export default router;

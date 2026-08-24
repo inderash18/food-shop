@@ -6,7 +6,7 @@ import { ROLE } from '../constants';
 const router = Router();
 
 // All routes are protected by admin roles
-router.use(requireAuth, requireRole([ROLE.ADMIN, ROLE.SUPER_ADMIN]));
+router.use(requireAuth(), requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN));
 
 router.get('/dashboard/stats', getDashboardStats);
 router.get('/dashboard/revenue-chart', getRevenueChart);
