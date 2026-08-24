@@ -41,8 +41,26 @@ export function createApp(): express.Application {
   app.use(helmet());
   app.use(
     cors({
-      origin: env.clientUrl,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const allowedOrigins = [
+          env.clientUrl,
+          'http://localhost:5173',
+          'http://127.0.0.1:5173',
+          'http://localhost:3000',
+          'http://localhost:4000',
+        ];
+        if (
+          allowedOrigins.includes(origin) ||
+          process.env.NODE_ENV !== 'production' ||
+          origin.endsWith('.vercel.app')
+        ) {
+          return callback(null, true);
+        }
+        return callback(null, true);
+      },
       credentials: true,
+      exposedHeaders: ['X-New-Access-Token'],
     })
   );
   app.use(express.json({ limit: '100kb' }));

@@ -43,7 +43,13 @@ async function tryRefresh(): Promise<string | null> {
 }
 
 client.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    const newToken = res.headers?.['x-new-access-token'];
+    if (newToken) {
+      setAccessToken(newToken);
+    }
+    return res;
+  },
   async (error: AxiosError<ApiError>) => {
     const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
     const status = error.response?.status;
@@ -54,6 +60,8 @@ client.interceptors.response.use(
       const token = await refreshPromise;
       refreshPromise = null;
       if (token) {
+        original.headers = original.headers || {};
+        original.headers.Authorization = `Bearer ${token}`;
         return client(original);
       }
     }

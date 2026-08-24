@@ -10,33 +10,47 @@ import {
   publicUser,
   updateUserProfile,
   changeUserPassword,
+  issueTokenPair,
 } from '../services/auth.service';
 import { env } from '../config/env';
 import { AppError } from '../utils/errors';
 import { recordAudit } from '../services/audit.service';
 
 const REFRESH_COOKIE = 'refreshToken';
+const ACCESS_COOKIE = 'accessToken';
 
-function setRefreshCookie(res: Response, token: string): void {
-  res.cookie(REFRESH_COOKIE, token, {
+function setAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
+  // Set refresh token cookie (7 days)
+  res.cookie(REFRESH_COOKIE, refreshToken, {
     httpOnly: true,
     secure: env.cookieSecure,
     sameSite: 'lax',
-    path: '/api/auth',
+    path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  // Set access token cookie (15 minutes)
+  res.cookie(ACCESS_COOKIE, accessToken, {
+    httpOnly: true,
+    secure: env.cookieSecure,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 15 * 60 * 1000,
   });
 }
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const body = req.validatedBody as { name: string; email: string; studentId: string; password: string; phone?: string };
   const user = await registerUser(body);
-  sendSuccess(res, { user: publicUser(user as never) }, 201);
+  const { accessToken, refreshToken } = await issueTokenPair(user.id, user.role);
+  setAuthCookies(res, accessToken, refreshToken);
+  sendSuccess(res, { user: publicUser(user as never), accessToken }, 201);
 });
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const body = req.validatedBody as { identifier: string; password: string };
   const { accessToken, refreshToken } = await loginUser(body.identifier, body.password);
-  setRefreshCookie(res, refreshToken);
+  setAuthCookies(res, accessToken, refreshToken);
   sendSuccess(res, { accessToken, expiresIn: 900 });
 });
 
@@ -44,13 +58,17 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
   const token = req.cookies?.[REFRESH_COOKIE];
   if (!token) throw new AppError(401, 'UNAUTHORIZED', 'No refresh token provided');
   const { accessToken, refreshToken } = await refreshSession(token);
-  setRefreshCookie(res, refreshToken);
+  setAuthCookies(res, accessToken, refreshToken);
   sendSuccess(res, { accessToken });
 });
 
 export const logout = asyncHandler(async (req: Request, res: Response) => {
   const token = req.cookies?.[REFRESH_COOKIE] ?? '';
-  await logoutSession(token);
+  if (token) {
+    await logoutSession(token);
+  }
+  res.clearCookie(REFRESH_COOKIE, { path: '/' });
+  res.clearCookie(ACCESS_COOKIE, { path: '/' });
   res.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
   if (req.userId) {
     await recordAudit({ actorId: req.userId, action: 'LOGOUT', resource: 'user', resourceId: req.userId });

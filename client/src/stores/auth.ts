@@ -27,8 +27,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   register: async (payload) => {
-    const data = await apiPost<{ user: User }>('/api/auth/register', payload);
-    set({ user: data.user });
+    const data = await apiPost<{ user: User; accessToken?: string }>('/api/auth/register', payload);
+    if (data?.accessToken) {
+      setAccessToken(data.accessToken);
+    }
+    set({ user: data.user, initialized: true });
     return data.user;
   },
 
@@ -39,7 +42,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // ignore network errors on logout
     }
     setAccessToken(null);
-    set({ user: null });
+    set({ user: null, initialized: true });
   },
 
   loadMe: async () => {
