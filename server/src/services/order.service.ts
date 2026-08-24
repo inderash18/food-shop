@@ -32,7 +32,14 @@ export interface CheckoutLine {
 
 interface CheckoutResult {
   order: IOrder;
-  paymentIntent: { paymentId: string; provider: string; amount: number; clientSecret?: string };
+  paymentIntent: {
+    paymentId: string;
+    provider: string;
+    amount: number;
+    clientSecret?: string;
+    providerPaymentId?: string;
+    metadata?: Record<string, any>;
+  };
   requiresVerification: boolean;
 }
 
@@ -228,6 +235,8 @@ export async function initiateCheckout(
       provider: paymentIntent.provider,
       amount: paymentIntent.amount,
       clientSecret: paymentIntent.clientSecret,
+      providerPaymentId: paymentIntent.providerPaymentId,
+      metadata: paymentIntent.metadata,
     },
     requiresVerification: paymentIntent.requiresVerification,
   };

@@ -182,6 +182,23 @@ export function CheckoutPage() {
     },
   });
 
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-8 bg-white rounded-3xl border border-amber-100 text-center space-y-4 shadow-card">
+        <User className="w-10 h-10 text-amber-600 mx-auto" />
+        <h2 className="text-base font-bold text-amber-950">Please sign in to proceed to checkout</h2>
+        <p className="text-xs text-stone-500">You need to sign in to place and track your food pre-orders.</p>
+        <Link
+          to="/login"
+          state={{ from: location }}
+          className="inline-flex px-5 py-2.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs border border-amber-300"
+        >
+          Sign In
+        </Link>
+      </div>
+    );
+  }
+
   if (cart.items.length === 0) {
     return (
       <div className="max-w-md mx-auto my-12 p-8 bg-white rounded-3xl border border-amber-100 text-center space-y-4 shadow-card">
