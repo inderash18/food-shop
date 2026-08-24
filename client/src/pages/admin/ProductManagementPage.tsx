@@ -194,7 +194,7 @@ export function ProductManagementPage() {
                           {isOutOfStock ? 'OUT OF STOCK' : 'IN STOCK'}
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{new Date(product.createdAt).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-gray-500">{product.createdAt ? new Date(product.createdAt).toLocaleDateString() : '—'}</td>
                       <td className="px-4 py-3 text-right space-x-1">
                         <button onClick={() => handleOpenEdit(product)} className="p-1.5 hover:bg-gray-100 text-gray-600 rounded-lg transition-colors" title="Edit">
                           <Edit2 className="w-4 h-4" />

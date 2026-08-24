@@ -1,5 +1,5 @@
 import client, { apiGet, apiPost, apiPatch, apiDelete } from './client';
-import type { Order, User, Product, Category, Paginated, DashboardStats } from '../lib/types';
+import type { Order, User, Product, Category, Paginated, DashboardStats, Role } from '../lib/types';
 
 export interface InventoryRow {
   productId: string;
@@ -109,6 +109,7 @@ export const adminApi = {
   settlements: () => apiGet<any>('/api/admin/settlements'),
 
   ordersByHour: () => apiGet<{ hours: HourRow[] }>('/api/admin/analytics/orders-by-hour').then((d) => d.hours),
+  revenueByDay: (days = 7) => apiGet<{ days: RevenueDay[] }>(`/api/admin/analytics/revenue-by-day?days=${days}`).then((d) => d.days),
   popularProducts: (limit = 10) => apiGet<{ products: PopularProduct[] }>(`/api/admin/analytics/popular-products?limit=${limit}`).then((d) => d.products),
   categorySales: () => apiGet<{ categories: CategorySale[] }>('/api/admin/analytics/category-sales').then((d) => d.categories),
   stockConsumption: (days = 7) => apiGet<{ products: { name: string; quantity: number }[] }>(`/api/admin/analytics/stock-consumption?days=${days}`).then((d) => d.products),
@@ -194,7 +195,7 @@ export const adminApi = {
   userDetail: (id: string) => apiGet<{ user: User; stats: { orderCount: number; totalSpend: number } }>(`/api/admin/users/${id}`),
   setUserActive: (id: string, isActive: boolean) => apiPatch<{ user: User }>(`/api/admin/users/${id}/active`, { isActive }).then((d) => d.user),
   setUserRole: (id: string, role: string) => apiPatch<{ user: User }>(`/api/admin/users/${id}/role`, { role }).then((d) => d.user),
-  createStaff: (body: { name: string; email: string; studentId: string; role?: 'STAFF' | 'ADMIN' }) =>
+  createStaff: (body: { name: string; email: string; studentId: string; role?: Role | string }) =>
     apiPost<{ user: User; temporaryPassword: string }>('/api/admin/users/staff', body),
   resetPassword: (id: string, newPassword: string) => apiPost<{ message: string }>(`/api/admin/users/${id}/reset-password`, { newPassword }),
 

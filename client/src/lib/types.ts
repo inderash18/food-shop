@@ -91,6 +91,8 @@ export interface Product {
   availableNow?: boolean;
   effectiveStock?: number;
   inventoryStatus?: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CartItem {

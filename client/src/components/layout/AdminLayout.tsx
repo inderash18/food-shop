@@ -24,7 +24,19 @@ import { useSocket } from '../../hooks/useSocket';
 import { cn } from '../../lib/format';
 import { ToastContainer } from '../ui/Toast';
 
-const navGroups = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: any;
+  end?: boolean;
+}
+
+interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
   {
     title: 'Overview',
     items: [
