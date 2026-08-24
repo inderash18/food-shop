@@ -3,6 +3,7 @@ import { env } from './env';
 import { logger } from './logger';
 
 export async function connectDatabase(): Promise<void> {
+  if (mongoose.connection.readyState >= 1) return;
   mongoose.set('strictQuery', true);
   await mongoose.connect(env.databaseUrl, {
     maxPoolSize: 20,
