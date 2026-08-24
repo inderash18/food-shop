@@ -12,6 +12,7 @@ declare global {
 }
 
 import { env } from '../config/env';
+import { UnauthorizedError, ForbiddenError } from '../utils/errors';
 
 /**
  * Authenticates the request via Bearer header or HTTP-only auth cookies.
@@ -75,7 +76,7 @@ export function requireAuth(): RequestHandler {
       }
     }
 
-    return next(Object.assign(new Error('Not authenticated'), { statusCode: 401, code: 'UNAUTHORIZED' }));
+    return next(new UnauthorizedError('Not authenticated'));
   };
 }
 
@@ -85,10 +86,10 @@ export function requireAuth(): RequestHandler {
 export function requireRole(...roles: Role[]): RequestHandler {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.userId) {
-      return next(Object.assign(new Error('Not authenticated'), { statusCode: 401, code: 'UNAUTHORIZED' }));
+      return next(new UnauthorizedError('Not authenticated'));
     }
     if (!roles.includes(req.userRole!)) {
-      return next(Object.assign(new Error('You do not have permission to perform this action'), { statusCode: 403, code: 'FORBIDDEN' }));
+      return next(new ForbiddenError('You do not have permission to perform this action'));
     }
     next();
   };

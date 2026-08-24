@@ -10,6 +10,8 @@ declare global {
   }
 }
 
+import { UnauthorizedError } from '../utils/errors';
+
 /**
  * Loads the full user document from the database for the authenticated request.
  * Enforces backend-as-source-of-truth for role and account status.
@@ -19,11 +21,11 @@ export function loadUser(): RequestHandler {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       if (!req.userId) {
-        throw Object.assign(new Error('Not authenticated'), { statusCode: 401, code: 'UNAUTHORIZED' });
+        throw new UnauthorizedError('Not authenticated');
       }
       const user = await User.findById(req.userId);
       if (!user || !user.isActive) {
-        throw Object.assign(new Error('Session is no longer valid'), { statusCode: 401, code: 'UNAUTHORIZED' });
+        throw new UnauthorizedError('Session is no longer valid');
       }
       req.user = user;
       req.userRole = user.role as Role;
