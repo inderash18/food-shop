@@ -44,22 +44,32 @@ const categoryFallbacks: Record<string, string> = {
   default: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80',
 };
 
-export function getFallbackImage(dishName: string = '', categoryName: string = ''): string {
+export function optimizeImageUrl(url: string, width = 240, quality = 75): string {
+  if (!url) return url;
+  if (url.includes('images.unsplash.com')) {
+    // Replace or append w, q, auto params
+    const baseUrl = url.split('?')[0];
+    return `${baseUrl}?auto=format&fit=crop&w=${width}&q=${quality}`;
+  }
+  return url;
+}
+
+export function getFallbackImage(dishName: string = '', categoryName: string = '', width = 240): string {
   const normName = dishName.toLowerCase();
   for (const [key, url] of Object.entries(dishImageMap)) {
     if (normName.includes(key)) {
-      return url;
+      return optimizeImageUrl(url, width);
     }
   }
 
   const normCat = categoryName.toLowerCase();
   for (const [key, url] of Object.entries(categoryFallbacks)) {
     if (normCat.includes(key)) {
-      return url;
+      return optimizeImageUrl(url, width);
     }
   }
 
-  return categoryFallbacks.default;
+  return optimizeImageUrl(categoryFallbacks.default, width);
 }
 
 interface ProductImageProps {
@@ -80,8 +90,8 @@ export function ProductImage({
   const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  const fallbackSrc = getFallbackImage(alt, categoryName);
-  const finalSrc = !src || error ? fallbackSrc : src;
+  const fallbackSrc = getFallbackImage(alt, categoryName, priority ? 600 : 320);
+  const finalSrc = optimizeImageUrl(!src || error ? fallbackSrc : src, priority ? 600 : 320);
 
   return (
     <div className={`relative overflow-hidden bg-gray-100/80 ${className}`}>

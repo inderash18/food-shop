@@ -2,9 +2,16 @@ import { Request, Response, NextFunction } from 'express';
 import { Order, User, Product, Payment, PaymentTransaction } from '../models';
 import { ORDER_STATUS, ROLE, INVENTORY_STATUS, PAYMENT_STATUS, SETTLEMENT_STATUS } from '../constants';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
+import { cache } from '../services/cache.service';
 
 export const getDashboardStats = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    const cachedStats = cache.get<Record<string, unknown>>('admin_dashboard_stats');
+    if (cachedStats) {
+      res.json(cachedStats);
+      return;
+    }
+
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
 
@@ -39,7 +46,7 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
     const totalRevenue = totalRevenueResult[0]?.total || 0;
     const todayRevenue = todayRevenueResult[0]?.total || 0;
 
-    res.json({
+    const payload = {
       totalUsers,
       totalOrders,
       todayOrders,
@@ -49,7 +56,10 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
       completedOrders,
       cancelledOrders,
       outOfStockProducts,
-    });
+    };
+
+    cache.set('admin_dashboard_stats', payload, 10_000); // 10s TTL
+    res.json(payload);
   } catch (error) {
     next(error);
   }
@@ -57,6 +67,12 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
 
 export const getRevenueChart = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    const cachedChart = cache.get<unknown[]>('admin_revenue_chart_7d');
+    if (cachedChart) {
+      res.json(cachedChart);
+      return;
+    }
+
     const days = 7;
     const startDate = startOfDay(subDays(new Date(), days - 1));
 
@@ -91,6 +107,7 @@ export const getRevenueChart = async (req: Request, res: Response, next: NextFun
       });
     }
 
+    cache.set('admin_revenue_chart_7d', chart, 30_000); // 30s TTL
     res.json(chart);
   } catch (error) {
     next(error);

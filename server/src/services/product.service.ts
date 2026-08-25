@@ -66,6 +66,12 @@ export async function listProducts(query: ListProductsQuery) {
     limit = 24,
   } = query;
 
+  const cacheKey = `products_${category || 'all'}_${search || ''}_${isVeg}_${inStockOnly}_${sort}_${page}_${limit}`;
+  const cached = cache.get<{ products: unknown[]; total: number; page: number; limit: number; pages: number }>(cacheKey);
+  if (cached && !search) {
+    return cached;
+  }
+
   const filter: Record<string, unknown> = { isActive: true };
   if (category) {
     const cat = await Category.findOne({ slug: category }).lean();
@@ -104,7 +110,11 @@ export async function listProducts(query: ListProductsQuery) {
     };
   });
 
-  return { products, total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) };
+  const result = { products, total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) };
+  if (!search) {
+    cache.set(cacheKey, result, 30_000); // 30s TTL
+  }
+  return result;
 }
 
 export async function getProduct(id: string) {

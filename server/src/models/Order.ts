@@ -115,7 +115,9 @@ const orderSchema = new Schema<IOrder>(
 );
 
 orderSchema.index({ userId: 1, createdAt: -1 });
+orderSchema.index({ userId: 1, paymentStatus: 1, status: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
+orderSchema.index({ paymentStatus: 1, status: 1, createdAt: 1 });
 orderSchema.index({ collectionStatus: 1, createdAt: -1 });
 
 export const Order = (models.Order ?? model<IOrder>('Order', orderSchema)) as Model<IOrder>;

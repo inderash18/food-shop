@@ -34,10 +34,11 @@ export function OrderDetailPage() {
     queryKey: ['order-detail', id],
     queryFn: () => apiGet<{ order: Order }>(`/api/orders/${id}`),
     enabled: !!id,
+    staleTime: 15_000,
     refetchInterval: (query) => {
       const status = (query.state.data as any)?.order?.status;
       if (status === 'COMPLETED' || status === 'CANCELLED') return false;
-      return 8_000; // live kitchen polling
+      return 20_000; // live kitchen fallback
     },
   });
 

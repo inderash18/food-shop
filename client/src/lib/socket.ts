@@ -4,6 +4,7 @@ import { getAccessToken } from '../api/client';
 let globalSocket: Socket | null = null;
 
 export function getSocket(): Socket | null {
+  if (globalSocket && globalSocket.connected) return globalSocket;
   if (globalSocket) return globalSocket;
 
   // Vercel serverless functions do not support WebSockets
@@ -18,7 +19,16 @@ export function getSocket(): Socket | null {
     auth: { token },
     transports: ['websocket'],
     reconnectionAttempts: 5,
+    autoConnect: true,
   });
 
   return globalSocket;
 }
+
+export function disconnectSocket(): void {
+  if (globalSocket) {
+    globalSocket.disconnect();
+    globalSocket = null;
+  }
+}
+

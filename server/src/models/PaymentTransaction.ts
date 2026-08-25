@@ -42,5 +42,8 @@ const paymentTransactionSchema = new Schema<IPaymentTransaction>(
 );
 
 paymentTransactionSchema.index({ provider: 1, transactionId: 1 }, { unique: true });
+paymentTransactionSchema.index({ createdAt: -1 });
+paymentTransactionSchema.index({ status: 1, createdAt: -1 });
+paymentTransactionSchema.index({ settlementStatus: 1, createdAt: -1 });
 
 export const PaymentTransaction = (models.PaymentTransaction ?? model<IPaymentTransaction>('PaymentTransaction', paymentTransactionSchema)) as Model<IPaymentTransaction>;

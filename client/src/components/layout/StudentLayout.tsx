@@ -74,12 +74,12 @@ export function StudentLayout({ children }: { children?: React.ReactNode }) {
     setLocationModalOpen(false);
   }, [location.pathname]);
 
-  // Unread notifications query
+  // Unread notifications query (synchronized via WebSocket events)
   const { data: unreadData } = useQuery({
     queryKey: ['notifications-unread-count'],
     queryFn: () => apiGet<{ unread: number }>('/api/notifications/unread-count'),
     enabled: !!user,
-    refetchInterval: user ? 30_000 : false,
+    staleTime: 60_000,
   });
   const unreadCount = unreadData?.unread ?? 0;
 

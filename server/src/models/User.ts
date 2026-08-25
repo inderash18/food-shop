@@ -36,5 +36,6 @@ const userSchema = new Schema<IUser>(
 );
 
 userSchema.index({ role: 1, isActive: 1 });
+userSchema.index({ role: 1, createdAt: -1 });
 
 export const User = (models.User ?? model<IUser>('User', userSchema)) as Model<IUser>;

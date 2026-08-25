@@ -30,8 +30,8 @@ export function OrdersPage() {
     queryKey: ['my-orders'],
     queryFn: () => apiGet<{ orders: Order[] }>('/api/orders/mine'),
     enabled: !!user,
-    staleTime: 20_000,
-    refetchInterval: 15_000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
   });
 
   const orders = data?.orders || [];

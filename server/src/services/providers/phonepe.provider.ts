@@ -138,7 +138,14 @@ export class PhonePeProvider implements PaymentProvider {
       let status: PaymentStatus = PAYMENT_STATUS.PENDING;
       if (data.code === 'PAYMENT_SUCCESS') {
         status = PAYMENT_STATUS.SUCCESS;
-      } else if (data.code === 'PAYMENT_ERROR' || data.code === 'PAYMENT_DECLINED') {
+      } else if (
+        data.code === 'PAYMENT_ERROR' ||
+        data.code === 'PAYMENT_DECLINED' ||
+        data.code === 'PAYMENT_CANCELLED' ||
+        data.code === 'TIMED_OUT' ||
+        data.code === 'TRANSACTION_NOT_FOUND' ||
+        data.code === 'AUTHORIZATION_FAILED'
+      ) {
         status = PAYMENT_STATUS.FAILED;
       }
 

@@ -46,15 +46,16 @@ export function HomePage() {
 
   const products = catalogData?.products || [];
 
-  // 2. Fetch User's Active Pre-Orders
+  // 2. Fetch User's Active Pre-Orders (synchronized via WebSocket events with 30s background fallback)
   const { data: activeOrderData } = useQuery({
     queryKey: ['my-active-order'],
     queryFn: () => apiGet<{ order: Order | null }>('/api/orders/mine/active'),
     enabled: !!user,
+    staleTime: 15_000,
     refetchInterval: (query) => {
       const order = (query.state.data as any)?.order;
       if (!order || order.status === 'COMPLETED' || order.status === 'CANCELLED') return false;
-      return 10_000;
+      return 30_000;
     },
   });
 

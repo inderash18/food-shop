@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   ShieldCheck,
   Loader2,
@@ -44,17 +44,20 @@ type PaymentUIState =
 
 export function PaymentPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const user = useAuthStore((s) => s.user);
 
-  const [paymentId] = useState(() => sessionStorage.getItem('paymentId') ?? '');
-  const [providerPaymentId] = useState(() => sessionStorage.getItem('providerPaymentId') ?? '');
-  const [amount] = useState(() => Number(sessionStorage.getItem('paymentAmount') ?? 0));
-  const [orderNumber] = useState(() => sessionStorage.getItem('orderNumber') ?? '');
-  const [orderId] = useState(() => sessionStorage.getItem('orderId') ?? '');
-  const [upiIntentUri] = useState(() => sessionStorage.getItem('upiIntentUri') ?? '');
-  const [upiId] = useState(() => sessionStorage.getItem('merchantUpiId') ?? '');
+  // Extract from searchParams first (in case of redirect from UPI app) or fallback to sessionStorage
+  const paramPaymentId = searchParams.get('paymentId') || searchParams.get('orderId') || searchParams.get('order_id') || searchParams.get('providerPaymentId');
+  const [paymentId] = useState(() => paramPaymentId || sessionStorage.getItem('paymentId') || sessionStorage.getItem('orderId') || '');
+  const [providerPaymentId] = useState(() => searchParams.get('providerPaymentId') || sessionStorage.getItem('providerPaymentId') || '');
+  const [amount] = useState(() => Number(sessionStorage.getItem('paymentAmount') || 0));
+  const [orderNumber] = useState(() => sessionStorage.getItem('orderNumber') || '');
+  const [orderId] = useState(() => searchParams.get('orderId') || sessionStorage.getItem('orderId') || '');
+  const [upiIntentUri] = useState(() => sessionStorage.getItem('upiIntentUri') || '');
+  const [upiId] = useState(() => sessionStorage.getItem('merchantUpiId') || '');
 
-  const [uiState, setUiState] = useState<PaymentUIState>('INITIALIZING');
+  const [uiState, setUiState] = useState<PaymentUIState>('VERIFYING');
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes session
   const [isCopied, setIsCopied] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
@@ -62,6 +65,13 @@ export function PaymentPage() {
   const [hasNotifiedNotConfigured, setHasNotifiedNotConfigured] = useState(false);
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isCheckingRef = useRef(false);
+  const uiStateRef = useRef<PaymentUIState>('VERIFYING');
+  const pollCountRef = useRef(0);
+
+  useEffect(() => {
+    uiStateRef.current = uiState;
+  }, [uiState]);
 
   // Clear polling helper
   const stopPolling = useCallback(() => {
@@ -71,10 +81,11 @@ export function PaymentPage() {
     }
   }, []);
 
-  // Verification call with timeout and proper error mapping
+  // Verification call with timeout and server-side status check
   const performVerification = useCallback(
     async (isManual = false) => {
-      if (!paymentId) return;
+      if (!paymentId || isCheckingRef.current) return;
+      isCheckingRef.current = true;
 
       if (isManual) {
         setIsChecking(true);
@@ -84,15 +95,14 @@ export function PaymentPage() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s client timeout
 
-        const res = await apiClient.post(
-          `/api/payments/verify`,
-          { paymentId },
+        const res = await apiClient.get(
+          `/api/payment/status/${paymentId}`,
           { signal: controller.signal }
         );
         clearTimeout(timeoutId);
 
         const data = res.data?.data;
-        const paymentStatus = data?.payment?.status;
+        const paymentStatus = data?.status || data?.payment?.status;
         const orderStatus = data?.order?.status;
 
         if (paymentStatus === PAYMENT_SUCCESS || orderStatus === ORDER_CONFIRMED) {
@@ -109,7 +119,7 @@ export function PaymentPage() {
           return;
         }
 
-        if (paymentStatus === PAYMENT_FAILED) {
+        if (paymentStatus === PAYMENT_FAILED || paymentStatus === 'REJECTED') {
           stopPolling();
           setUiState('FAILED');
           setStatusMessage('Payment failed. Your order has not been confirmed.');
@@ -123,8 +133,13 @@ export function PaymentPage() {
           return;
         }
 
-        // If still pending
-        if (uiState !== 'PAYMENT_READY' && uiState !== 'PENDING') {
+        // If still pending, increment poll count
+        pollCountRef.current += 1;
+        if (pollCountRef.current > 18) {
+          stopPolling();
+          setUiState('TIMEOUT');
+          setStatusMessage('Payment verification is taking longer than expected. Please check your order or payment status.');
+        } else if (uiStateRef.current === 'VERIFYING') {
           setUiState('PAYMENT_READY');
         }
       } catch (err: any) {
@@ -164,32 +179,34 @@ export function PaymentPage() {
           setStatusMessage(message || 'Unable to verify payment status.');
         }
       } finally {
+        isCheckingRef.current = false;
         if (isManual) {
           setIsChecking(false);
         }
       }
     },
-    [paymentId, navigate, stopPolling, uiState, hasNotifiedNotConfigured]
+    [paymentId, navigate, stopPolling, hasNotifiedNotConfigured]
   );
 
-  // Initial verification & polling setup
+  // Initial verification & responsive 2.5-second polling setup
   useEffect(() => {
     if (!paymentId) {
       navigate('/cart', { replace: true });
       return;
     }
 
-    setUiState('PAYMENT_READY');
-
-    // Run first check
+    // Run first check immediately on page open / return
     performVerification(false);
 
-    // Start 10-second polling interval
+    // Start 2.5-second polling interval
     pollTimerRef.current = setInterval(() => {
-      if (uiState !== 'NOT_CONFIGURED' && uiState !== 'SUCCESS' && uiState !== 'FAILED' && uiState !== 'CANCELLED') {
+      const current = uiStateRef.current;
+      if (current !== 'NOT_CONFIGURED' && current !== 'SUCCESS' && current !== 'FAILED' && current !== 'CANCELLED' && current !== 'TIMEOUT' && current !== 'EXPIRED') {
         performVerification(false);
+      } else {
+        stopPolling();
       }
-    }, 10000);
+    }, 2500);
 
     return () => {
       stopPolling();
@@ -204,7 +221,7 @@ export function PaymentPage() {
       return;
     }
     const timer = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
   }, [timeLeft, stopPolling]);
@@ -349,6 +366,57 @@ export function PaymentPage() {
               className="block w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl transition-colors text-center"
             >
               RETURN TO CART
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* STATE: VERIFYING (Returning from UPI App)                 */}
+      {/* ========================================================= */}
+      {uiState === 'VERIFYING' && (
+        <div className="bg-white rounded-3xl border border-amber-200 shadow-card p-8 text-center space-y-4 animate-in">
+          <div className="mx-auto h-16 w-16 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shadow-3xs">
+            <Loader2 className="h-8 w-8 animate-spin text-amber-700" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold text-amber-950">Checking payment status...</h2>
+            <p className="text-stone-500 text-xs font-normal">
+              Please wait while we verify your payment status directly with the payment gateway.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* STATE: TIMEOUT (Verification taking longer than expected) */}
+      {/* ========================================================= */}
+      {uiState === 'TIMEOUT' && (
+        <div className="bg-white rounded-3xl border border-amber-200 shadow-card p-7 text-center space-y-4 animate-in">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+            <Clock className="w-7 h-7" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-base font-bold text-amber-950">Payment Verification Pending</h2>
+            <p className="text-stone-600 text-xs font-normal">
+              {statusMessage || 'Payment verification is taking longer than expected. Please check your order or payment status.'}
+            </p>
+          </div>
+          <div className="space-y-2 pt-2">
+            <button
+              onClick={() => {
+                setUiState('VERIFYING');
+                performVerification(true);
+              }}
+              className="w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs border border-amber-300 transition-transform active:scale-98"
+            >
+              RE-CHECK PAYMENT STATUS
+            </button>
+            <Link
+              to="/orders"
+              className="block w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl transition-colors text-center"
+            >
+              VIEW MY ORDERS
             </Link>
           </div>
         </div>

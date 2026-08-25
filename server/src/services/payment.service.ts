@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, HydratedDocument } from 'mongoose';
 import { Payment, Order, IPayment, IOrder } from '../models';
 import { PAYMENT_STATUS, PaymentStatus } from '../constants';
 import { AppError, NotFoundError, PaymentError, ConflictError, PaymentProviderNotConfiguredError } from '../utils/errors';
@@ -63,6 +63,21 @@ class PaymentGatewayService {
     return provider;
   }
 
+  async findPaymentForUser(identifier: string, userId?: string): Promise<HydratedDocument<IPayment> | null> {
+    const isObjectId = Types.ObjectId.isValid(identifier);
+    const query: any = {
+      $or: [
+        ...(isObjectId ? [{ _id: new Types.ObjectId(identifier) }, { orderId: new Types.ObjectId(identifier) }] : []),
+        { providerPaymentId: identifier },
+        { idempotencyKey: identifier },
+      ],
+    };
+    if (userId) {
+      query.userId = new Types.ObjectId(userId);
+    }
+    return Payment.findOne(query).sort({ createdAt: -1 });
+  }
+
   async createPayment(input: CreatePaymentInput): Promise<PaymentIntent> {
     const provider = this.getProvider(env.paymentProvider);
 
@@ -82,22 +97,26 @@ class PaymentGatewayService {
       amount: input.amount,
       currency: input.currency,
       status: PAYMENT_STATUS.PENDING,
+      verificationStatus: 'NOT_VERIFIED',
       idempotencyKey,
       metadata: created.metadata ?? {},
     });
 
-    logger.info('Payment created', { paymentId: String(payment._id), provider: provider.name });
+    logger.info(`Payment created: ${String(payment._id)}`, { paymentId: String(payment._id), orderId: input.orderId, provider: provider.name });
     return this.toIntent(payment, created.clientSecret);
   }
 
-  async verifyPayment(paymentId: string, studentId: string): Promise<{ payment: IPayment; order: IOrder }> {
-    const payment = await Payment.findById(paymentId);
+  async verifyPayment(paymentIdOrIdentifier: string, studentId: string): Promise<{ payment: IPayment; order: IOrder }> {
+    logger.info(`Payment verification started: ${paymentIdOrIdentifier}`);
+
+    const payment = await this.findPaymentForUser(paymentIdOrIdentifier, studentId);
     if (!payment) throw new NotFoundError('Payment not found');
     if (String(payment.userId) !== studentId) throw new AppError(403, 'FORBIDDEN', 'Payment does not belong to you');
 
     if (payment.status === PAYMENT_STATUS.SUCCESS && payment.verificationStatus === 'VERIFIED') {
       const order = await Order.findById(payment.orderId);
       if (!order) throw new NotFoundError('Order not found');
+      logger.info(`Gateway status: SUCCESS (already verified)`, { paymentId: String(payment._id), orderId: String(order._id) });
       return { payment, order };
     }
 
@@ -112,9 +131,11 @@ class PaymentGatewayService {
     let result;
     try {
       result = await provider.verifyPayment(payment.providerPaymentId);
+      logger.info(`Gateway status: ${result.status}`, { paymentId: String(payment._id), gatewayStatus: result.status });
     } catch (error) {
       payment.verificationStatus = 'NOT_VERIFIED';
       await payment.save();
+      logger.error('Gateway verification request error', { paymentId: String(payment._id), error: (error as Error).message });
       throw error;
     }
 
@@ -128,16 +149,18 @@ class PaymentGatewayService {
           payment.verificationStatus = 'REJECTED';
           payment.failureReason = 'DUPLICATE_TRANSACTION';
           await payment.save();
+          logger.warn(`Payment failed: ${String(payment._id)} - Duplicate transaction ID`);
           throw new PaymentError('Transaction has already been processed', 'INVALID_PAYMENT');
         }
       }
 
       // 2. Verify Amount
-      if (result.amount !== undefined && result.amount !== payment.amount) {
+      if (result.amount !== undefined && Math.abs(result.amount - payment.amount) > 0.01) {
         payment.status = PAYMENT_STATUS.FAILED;
         payment.verificationStatus = 'REJECTED';
         payment.failureReason = 'AMOUNT_MISMATCH';
         await payment.save();
+        logger.warn(`Payment failed: ${String(payment._id)} - Amount mismatch: expected ${payment.amount}, got ${result.amount}`);
         throw new PaymentError(`Amount mismatch: expected ${payment.amount}, got ${result.amount}`, 'INVALID_PAYMENT');
       }
 
@@ -147,6 +170,7 @@ class PaymentGatewayService {
         payment.verificationStatus = 'REJECTED';
         payment.failureReason = 'CURRENCY_MISMATCH';
         await payment.save();
+        logger.warn(`Payment failed: ${String(payment._id)} - Currency mismatch: expected ${payment.currency}, got ${result.currency}`);
         throw new PaymentError('Currency mismatch', 'INVALID_PAYMENT');
       }
 
@@ -166,27 +190,31 @@ class PaymentGatewayService {
           metadata: { expected: payment.merchantAccountId, actual: result.merchantAccountId, reason: 'MERCHANT_MISMATCH' },
         });
         
+        logger.warn(`Payment failed: ${String(payment._id)} - Merchant account mismatch`);
         throw new PaymentError('Merchant account mismatch', 'INVALID_PAYMENT');
       }
 
       // Save Transaction Record
       if (result.transactionId) {
         const { PaymentTransaction } = await import('../models');
-        await PaymentTransaction.create({
-          paymentId: payment._id,
-          orderId: order._id,
-          provider: provider.name,
-          transactionId: result.transactionId,
-          amount: result.amount ?? payment.amount,
-          currency: result.currency ?? payment.currency,
-          merchantAccountId: result.merchantAccountId ?? payment.merchantAccountId ?? 'unknown',
-          status: PAYMENT_STATUS.SUCCESS,
-          verifiedAt: new Date(),
-        });
+        const existingTx = await PaymentTransaction.findOne({ provider: provider.name, transactionId: result.transactionId });
+        if (!existingTx) {
+          await PaymentTransaction.create({
+            paymentId: payment._id,
+            orderId: order._id,
+            provider: provider.name,
+            transactionId: result.transactionId,
+            amount: result.amount ?? payment.amount,
+            currency: result.currency ?? payment.currency,
+            merchantAccountId: result.merchantAccountId ?? payment.merchantAccountId ?? 'unknown',
+            status: PAYMENT_STATUS.SUCCESS,
+            verifiedAt: new Date(),
+          });
+        }
         payment.providerTransactionId = result.transactionId;
       }
 
-      // Confirm Order atomically
+      // Confirm Order atomically & idempotently
       const updatedPayment = await Payment.findOneAndUpdate(
         { _id: payment._id, verificationStatus: { $ne: 'VERIFIED' } },
         {
@@ -194,7 +222,7 @@ class PaymentGatewayService {
             status: PAYMENT_STATUS.SUCCESS,
             verificationStatus: 'VERIFIED',
             verifiedAt: new Date(),
-            providerTransactionId: result.transactionId
+            providerTransactionId: result.transactionId || payment.providerTransactionId,
           }
         },
         { new: true }
@@ -205,26 +233,33 @@ class PaymentGatewayService {
         const alreadyVerified = await Payment.findById(payment._id);
         const { confirmOrder } = await import('./order.service');
         const confirmedOrder = await confirmOrder(String(payment.orderId));
+        logger.info(`Order confirmed: ${String(order._id)}`);
         return { payment: alreadyVerified!, order: confirmedOrder };
       }
 
       const { confirmOrder } = await import('./order.service');
       const confirmedOrder = await confirmOrder(String(payment.orderId));
+      logger.info(`Order confirmed: ${String(order._id)}`);
       return { payment: updatedPayment, order: confirmedOrder };
     }
 
     if (result.status === PAYMENT_STATUS.FAILED) {
       await Payment.updateOne(
         { _id: payment._id },
-        { $set: { status: result.status, verificationStatus: 'REJECTED' } }
+        { $set: { status: PAYMENT_STATUS.FAILED, verificationStatus: 'REJECTED' } }
       );
       const { failOrder } = await import('./order.service');
       await failOrder(String(payment.orderId));
-      throw new PaymentError(`Payment ${result.status.toLowerCase()}`, 'PAYMENT_FAILED');
+      logger.warn(`Payment failed: ${String(payment._id)}`);
+      payment.status = PAYMENT_STATUS.FAILED;
+      payment.verificationStatus = 'REJECTED';
+      const updatedOrder = await Order.findById(payment.orderId);
+      return { payment, order: updatedOrder || order };
     }
 
-    // Still pending
+    // Still pending / processing
     await Payment.updateOne({ _id: payment._id }, { $set: { verificationStatus: 'NOT_VERIFIED' } });
+    payment.verificationStatus = 'NOT_VERIFIED';
     return { payment, order };
   }
 
