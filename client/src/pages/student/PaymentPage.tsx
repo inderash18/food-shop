@@ -247,6 +247,7 @@ export function PaymentPage() {
       setIsChecking(true);
       apiClient
         .post('/api/create-order', {
+          orderId: orderId || paymentId,
           amount: Math.round(amount * 100),
           currency: 'INR',
           receipt: `rcpt_${(orderId || paymentId).slice(-8)}`,

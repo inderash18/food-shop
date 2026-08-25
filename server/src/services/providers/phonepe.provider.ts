@@ -5,6 +5,7 @@ import { AppError, PaymentProviderNotConfiguredError } from '../../utils/errors'
 import { phonepeConfig } from '../../config/phonepe';
 import { logger } from '../../config/logger';
 import { env } from '../../config/env';
+import { toPaise, toRupees } from '../../utils/money';
 
 export class PhonePeProvider implements PaymentProvider {
   readonly name = 'phonepe';
@@ -31,7 +32,7 @@ export class PhonePeProvider implements PaymentProvider {
     this.assertConfigured();
 
     const orderId = input.orderId;
-    const amountInPaise = Math.round(input.amount * 100);
+    const amountInPaise = toPaise(input.amount);
 
     const payload = {
       merchantId: phonepeConfig.merchantId,

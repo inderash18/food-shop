@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { AuditLog } from '../models';
 import { AuditAction } from '../constants';
 import { logger } from '../config/logger';
@@ -14,6 +15,9 @@ interface AuditEntry {
 }
 
 export async function recordAudit(entry: AuditEntry): Promise<void> {
+  if (mongoose.connection.readyState !== 1) {
+    return;
+  }
   try {
     await AuditLog.create(entry);
   } catch (err) {

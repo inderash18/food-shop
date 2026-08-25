@@ -8,6 +8,7 @@ import { requestContext } from './middlewares/requestContext';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import { rateLimit } from './middlewares/rateLimit';
 import authRoutes from './routes/auth.routes';
+import adminAuthRoutes from './routes/admin.auth.routes';
 import { publicCatalogRoutes, adminCatalogRoutes } from './routes/catalog.routes';
 import cartRoutes from './routes/cart.routes';
 import checkoutRoutes from './routes/checkout.routes';
@@ -86,6 +87,8 @@ export function createApp(): express.Application {
   });
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/admin/auth', adminAuthRoutes);
+  app.use('/api/admin', adminAuthRoutes);
   app.use('/api', publicCatalogRoutes);
   app.use('/api', bookingRouter);
   app.use(

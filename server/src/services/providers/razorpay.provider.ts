@@ -5,6 +5,7 @@ import { AppError, PaymentProviderNotConfiguredError, PaymentError } from '../..
 import { razorpayConfig } from '../../config/razorpay';
 import { logger } from '../../config/logger';
 import { env } from '../../config/env';
+import { toPaise, toRupees } from '../../utils/money';
 
 export class RazorpayProvider implements PaymentProvider {
   readonly name = 'razorpay';
@@ -44,8 +45,8 @@ export class RazorpayProvider implements PaymentProvider {
     this.assertConfigured();
 
     const orderId = input.orderId;
-    // Amount in paise (minimum 100 paise)
-    const amountInPaise = Math.round(input.amount * 100);
+    // Authoritative amount in paise (minimum 100 paise)
+    const amountInPaise = toPaise(input.amount);
 
     if (amountInPaise < 100) {
       throw new AppError(400, 'BAD_REQUEST', 'Order amount must be at least 100 paise (₹1.00)');
@@ -121,7 +122,7 @@ export class RazorpayProvider implements PaymentProvider {
           return {
             status: PAYMENT_STATUS.SUCCESS,
             verified: true,
-            amount: successfulPayment.amount / 100,
+            amount: toRupees(successfulPayment.amount),
             currency: successfulPayment.currency,
             merchantAccountId: razorpayConfig.keyId,
             transactionId: successfulPayment.id,
@@ -133,7 +134,7 @@ export class RazorpayProvider implements PaymentProvider {
           return {
             status: PAYMENT_STATUS.FAILED,
             verified: true,
-            amount: failedPayment.amount / 100,
+            amount: toRupees(failedPayment.amount),
             currency: failedPayment.currency,
             merchantAccountId: razorpayConfig.keyId,
             transactionId: failedPayment.id,
@@ -145,7 +146,7 @@ export class RazorpayProvider implements PaymentProvider {
           return {
             status: PAYMENT_STATUS.SUCCESS,
             verified: true,
-            amount: orderDetails.amount / 100,
+            amount: toRupees(orderDetails.amount),
             currency: orderDetails.currency,
             merchantAccountId: razorpayConfig.keyId,
             transactionId: providerPaymentId,
@@ -155,7 +156,7 @@ export class RazorpayProvider implements PaymentProvider {
         return {
           status: PAYMENT_STATUS.PENDING,
           verified: false,
-          amount: orderDetails.amount / 100,
+          amount: toRupees(orderDetails.amount),
           currency: orderDetails.currency,
         };
       }

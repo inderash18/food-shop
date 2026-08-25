@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { StudentLayout } from './components/layout/StudentLayout';
 import { AdminLayout } from './components/layout/AdminLayout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { AdminProtectedRoute } from './components/auth/AdminProtectedRoute';
 import { useAuthStore } from './stores/auth';
 
 // Minimal Fast Loading Spinner
@@ -26,6 +27,9 @@ const LoginPage = lazy(() =>
 );
 const RegisterPage = lazy(() =>
   import('./pages/auth/RegisterPage').then((m) => ({ default: m.RegisterPage }))
+);
+const AdminLoginPage = lazy(() =>
+  import('./pages/admin/AdminLoginPage').then((m) => ({ default: m.AdminLoginPage }))
 );
 
 // Student Food Pre-Order Pages
@@ -277,8 +281,18 @@ export default function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Route>
 
+        {/* Dedicated Standalone Admin Login Portal */}
+        <Route path="/admin/login" element={<AdminLoginPage />} />
+
         {/* Protected Admin & Staff App Routes */}
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route
+          path="/admin"
+          element={
+            <AdminProtectedRoute>
+              <AdminLayout />
+            </AdminProtectedRoute>
+          }
+        >
           <Route index element={<AdminDashboardPage />} />
           <Route path="checkin" element={<StaffCheckInPage />} />
           <Route path="orders" element={<OrderManagementPage />} />

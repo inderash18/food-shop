@@ -19,6 +19,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
+import { useAdminAuthStore } from '../../stores/adminAuth';
 import { useAuthStore } from '../../stores/auth';
 import { useSocket } from '../../hooks/useSocket';
 import { cn } from '../../lib/format';
@@ -67,28 +68,35 @@ const navGroups: NavGroup[] = [
 ];
 
 export function AdminLayout() {
-  const user = useAuthStore((s) => s.user);
-  const initialized = useAuthStore((s) => s.initialized);
-  const logout = useAuthStore((s) => s.logout);
+  const { adminUser, isInitialized, logoutAdmin, loadAdminMe } = useAdminAuthStore();
+  const customerUser = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   useSocket();
 
-  if (!initialized) {
-    return <div className="h-screen w-screen flex items-center justify-center bg-gray-50 text-gray-500">Loading...</div>;
+  useEffect(() => {
+    if (!isInitialized) {
+      loadAdminMe();
+    }
+  }, [isInitialized, loadAdminMe]);
+
+  const activeAdmin = adminUser || (customerUser && customerUser.role !== 'STUDENT' ? customerUser : null);
+
+  if (!isInitialized) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-stone-950 text-stone-400 font-mono text-xs">
+        Verifying Administrative Session...
+      </div>
+    );
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (user.role === 'STUDENT') {
-    return <Navigate to="/" replace />;
+  if (!activeAdmin || activeAdmin.role === 'STUDENT') {
+    return <Navigate to="/admin/login" replace />;
   }
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/');
+    await logoutAdmin();
+    navigate('/admin/login', { replace: true });
   };
 
   const SidebarContent = () => (
@@ -134,11 +142,11 @@ export function AdminLayout() {
       <div className="border-t border-gray-100 p-3 shrink-0 pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center gap-3 px-2 py-2">
           <div className="h-9 w-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm">
-            {user?.name?.charAt(0) ?? 'A'}
+            {activeAdmin?.name?.charAt(0) ?? 'A'}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-            <p className="text-xs text-gray-500 truncate">{user?.role}</p>
+            <p className="text-sm font-medium text-gray-900 truncate">{activeAdmin?.name}</p>
+            <p className="text-xs text-gray-500 truncate">{activeAdmin?.role}</p>
           </div>
           <button onClick={handleLogout} className="p-2 w-11 h-11 flex items-center justify-center text-gray-400 hover:text-red-600" aria-label="Logout">
             <LogOut className="h-5 w-5" />

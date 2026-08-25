@@ -52,104 +52,78 @@ export function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* KPI Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Row 1 */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-            <Users className="w-6 h-6" />
+      {/* KPI Stat Cards — Overview & Payment Integrity */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+        {/* Today's Orders */}
+        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-1">
+          <div className="flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span>Today's Orders</span>
+            <ShoppingBag className="w-4 h-4 text-blue-600" />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Users</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-0.5">
-              {statsLoading ? '...' : stats?.totalUsers ?? 0}
-            </h3>
-          </div>
+          <h3 className="text-2xl font-bold text-gray-900">
+            {statsLoading ? '...' : stats?.todayOrders ?? 0}
+          </h3>
+          <p className="text-[11px] text-gray-400">Total: {stats?.totalOrders ?? 0} all-time</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-            <ShoppingBag className="w-6 h-6" />
+        {/* Pending Orders */}
+        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-1">
+          <div className="flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span>Pending Orders</span>
+            <Clock className="w-4 h-4 text-amber-600" />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Orders</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-0.5">
-              {statsLoading ? '...' : stats?.totalOrders ?? 0}
-            </h3>
-          </div>
+          <h3 className="text-2xl font-bold text-amber-600">
+            {statsLoading ? '...' : stats?.pendingOrders ?? 0}
+          </h3>
+          <p className="text-[11px] text-amber-700/80">Awaiting prep / payment</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-            <ShoppingBag className="w-6 h-6" />
+        {/* Confirmed Orders */}
+        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-1">
+          <div className="flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span>Confirmed Orders</span>
+            <CheckCircle className="w-4 h-4 text-indigo-600" />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Today's Orders</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-0.5">
-              {statsLoading ? '...' : stats?.todayOrders ?? 0}
-            </h3>
-          </div>
+          <h3 className="text-2xl font-bold text-indigo-600">
+            {statsLoading ? '...' : (stats as any)?.confirmedOrders ?? (stats?.todayOrders ? Math.max(0, stats.todayOrders - (stats?.pendingOrders || 0)) : 0)}
+          </h3>
+          <p className="text-[11px] text-indigo-700/80">Active in kitchen</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-            <IndianRupee className="w-6 h-6" />
+        {/* Completed Orders */}
+        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-1">
+          <div className="flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span>Completed</span>
+            <CheckCircle className="w-4 h-4 text-emerald-600" />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Today's Revenue</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-0.5">
-              {statsLoading ? '...' : `₹${stats?.todayRevenue?.toLocaleString('en-IN') ?? 0}`}
-            </h3>
-          </div>
+          <h3 className="text-2xl font-bold text-emerald-600">
+            {statsLoading ? '...' : stats?.completedOrders ?? 0}
+          </h3>
+          <p className="text-[11px] text-emerald-700/80">Successfully collected</p>
         </div>
 
-        {/* Row 2 */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-            <Clock className="w-6 h-6" />
+        {/* Failed / Cancelled Payments */}
+        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-1">
+          <div className="flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span>Failed / Cancelled</span>
+            <XCircle className="w-4 h-4 text-rose-600" />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending Orders</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-0.5">
-              {statsLoading ? '...' : stats?.pendingOrders ?? 0}
-            </h3>
-          </div>
+          <h3 className="text-2xl font-bold text-rose-600">
+            {statsLoading ? '...' : (stats?.cancelledOrders ?? 0)}
+          </h3>
+          <p className="text-[11px] text-rose-700/80">Protected & unconfirmed</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-            <CheckCircle className="w-6 h-6" />
+        {/* Total Revenue */}
+        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-1">
+          <div className="flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span>Total Revenue</span>
+            <IndianRupee className="w-4 h-4 text-emerald-600" />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Completed Orders</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-0.5">
-              {statsLoading ? '...' : stats?.completedOrders ?? 0}
-            </h3>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
-            <XCircle className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Cancelled Orders</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-0.5">
-              {statsLoading ? '...' : stats?.cancelledOrders ?? 0}
-            </h3>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
-            <PackageX className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Out of Stock</p>
-            <h3 className="text-2xl font-bold text-rose-600 mt-0.5">
-              {statsLoading ? '...' : stats?.outOfStockProducts ?? 0}
-            </h3>
-          </div>
+          <h3 className="text-2xl font-bold text-gray-900">
+            {statsLoading ? '...' : `₹${(stats?.totalRevenue ?? stats?.todayRevenue ?? 0).toLocaleString('en-IN')}`}
+          </h3>
+          <p className="text-[11px] text-emerald-700 font-semibold">Today: ₹{(stats?.todayRevenue ?? 0).toLocaleString('en-IN')}</p>
         </div>
       </div>
 

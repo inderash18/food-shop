@@ -242,8 +242,8 @@ export async function initiateCheckout(
   };
 }
 
-export async function reserveStock(order: { items: { productId: unknown; quantity: number }[] }, session?: ClientSession): Promise<void> {
-  for (const item of order.items) {
+export async function reserveStock(order: { items?: { productId: unknown; quantity: number }[] }, session?: ClientSession): Promise<void> {
+  for (const item of (order.items || [])) {
     const res = await Product.updateOne(
       {
         _id: item.productId,
@@ -259,8 +259,8 @@ export async function reserveStock(order: { items: { productId: unknown; quantit
   }
 }
 
-export async function commitStock(order: { items: { productId: unknown; quantity: number }[] }, session?: ClientSession): Promise<void> {
-  for (const item of order.items) {
+export async function commitStock(order: { items?: { productId: unknown; quantity: number }[] }, session?: ClientSession): Promise<void> {
+  for (const item of (order.items || [])) {
     await Product.updateOne(
       { _id: item.productId },
       { $inc: { stock: -item.quantity, reservedStock: -item.quantity, totalOrders: item.quantity } },
@@ -269,8 +269,8 @@ export async function commitStock(order: { items: { productId: unknown; quantity
   }
 }
 
-export async function releaseStock(order: { items: { productId: unknown; quantity: number }[] }, session?: ClientSession): Promise<void> {
-  for (const item of order.items) {
+export async function releaseStock(order: { items?: { productId: unknown; quantity: number }[] }, session?: ClientSession): Promise<void> {
+  for (const item of (order.items || [])) {
     await Product.updateOne(
       { _id: item.productId, reservedStock: { $gte: item.quantity } },
       { $inc: { reservedStock: -item.quantity } },
@@ -346,14 +346,16 @@ export async function cancelOrder(orderId: string, userId: string, isStaffOrAdmi
   return order;
 }
 
-export async function failOrder(orderId: string): Promise<IOrder> {
+export async function failOrder(orderId: string): Promise<IOrder | null> {
   const order = await Order.findById(orderId);
-  if (!order) throw new NotFoundError('Order not found');
+  if (!order) return null;
 
   await releaseStock(order);
   order.status = ORDER_STATUS.PAYMENT_FAILED;
   order.paymentStatus = PAYMENT_STATUS.FAILED;
-  await order.save();
+  if (typeof order.save === 'function') {
+    await order.save();
+  }
 
   cache.delByPrefix('products');
   emit('paymentFailed', { orderId: String(order._id), orderNumber: order.orderNumber, userId: String(order.userId) });

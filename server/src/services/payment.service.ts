@@ -5,6 +5,8 @@ import { AppError, NotFoundError, PaymentError, ConflictError, PaymentProviderNo
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 
+import { isAmountEqual, toPaise, toRupees } from '../utils/money';
+
 export interface CreatePaymentInput {
   orderId: string;
   userId: string;
@@ -79,6 +81,21 @@ class PaymentGatewayService {
   }
 
   async createPayment(input: CreatePaymentInput): Promise<PaymentIntent> {
+    // Verify order exists and validate authoritative amount directly from DB
+    const order = await Order.findById(input.orderId);
+    if (!order) {
+      throw new NotFoundError('Order not found');
+    }
+
+    if (!isAmountEqual(input.amount, order.total)) {
+      logger.error('Payment creation rejected: Amount mismatch with order total', {
+        inputAmount: input.amount,
+        orderTotal: order.total,
+        orderId: input.orderId,
+      });
+      throw new AppError(400, 'AMOUNT_MISMATCH', `Payment amount (₹${input.amount}) does not match order total (₹${order.total})`);
+    }
+
     const provider = this.getProvider(env.paymentProvider);
 
     const existingPayment = await Payment.findOne({ orderId: input.orderId }).sort({ createdAt: -1 });
@@ -94,12 +111,16 @@ class PaymentGatewayService {
       userId: input.userId,
       provider: provider.name,
       providerPaymentId: created.providerPaymentId,
-      amount: input.amount,
-      currency: input.currency,
+      amount: order.total, // Authoritative order total
+      currency: input.currency || 'INR',
       status: PAYMENT_STATUS.PENDING,
       verificationStatus: 'NOT_VERIFIED',
       idempotencyKey,
-      metadata: created.metadata ?? {},
+      metadata: {
+        ...(created.metadata ?? {}),
+        orderNumber: order.orderNumber,
+        expectedAmount: order.total,
+      },
     });
 
     logger.info(`Payment created: ${String(payment._id)}`, { paymentId: String(payment._id), orderId: input.orderId, provider: provider.name });
@@ -154,14 +175,23 @@ class PaymentGatewayService {
         }
       }
 
-      // 2. Verify Amount
-      if (result.amount !== undefined && Math.abs(result.amount - payment.amount) > 0.01) {
+      // 2. Strict Amount Verification against Order Total in DB
+      if (result.amount !== undefined && !isAmountEqual(result.amount, order.total)) {
         payment.status = PAYMENT_STATUS.FAILED;
         payment.verificationStatus = 'REJECTED';
         payment.failureReason = 'AMOUNT_MISMATCH';
+        payment.metadata = {
+          ...payment.metadata,
+          expectedAmount: order.total,
+          gatewayAmount: result.amount,
+        };
         await payment.save();
-        logger.warn(`Payment failed: ${String(payment._id)} - Amount mismatch: expected ${payment.amount}, got ${result.amount}`);
-        throw new PaymentError(`Amount mismatch: expected ${payment.amount}, got ${result.amount}`, 'INVALID_PAYMENT');
+
+        const { failOrder } = await import('./order.service');
+        await failOrder(String(payment.orderId));
+
+        logger.warn(`Payment failed: ${String(payment._id)} - Amount mismatch: expected ₹${order.total}, got ₹${result.amount}`);
+        throw new PaymentError(`Amount mismatch: expected ₹${order.total}, got ₹${result.amount}`, 'AMOUNT_MISMATCH');
       }
 
       // 3. Verify Currency
@@ -170,6 +200,10 @@ class PaymentGatewayService {
         payment.verificationStatus = 'REJECTED';
         payment.failureReason = 'CURRENCY_MISMATCH';
         await payment.save();
+
+        const { failOrder } = await import('./order.service');
+        await failOrder(String(payment.orderId));
+
         logger.warn(`Payment failed: ${String(payment._id)} - Currency mismatch: expected ${payment.currency}, got ${result.currency}`);
         throw new PaymentError('Currency mismatch', 'INVALID_PAYMENT');
       }

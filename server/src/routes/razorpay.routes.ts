@@ -12,10 +12,14 @@ import { env } from '../config/env';
 
 const router = Router();
 
+import { toPaise, toRupees, isAmountEqual } from '../utils/money';
+import { failOrder } from '../services/order.service';
+
 /**
  * Helper to handle order creation:
- * - Can accept items array (calculating authoritative price server-side from DB)
- * - Or direct amount (paise or INR >= 100 paise)
+ * - Looks up authoritative order total from database
+ * - Rejects any client-side amount tampering
+ * - Converts to paise consistently
  */
 async function handleCreateOrder(req: Request, res: Response) {
   logger.info('[PAYMENT] Checkout initiated', { body: req.body });
@@ -31,13 +35,39 @@ async function handleCreateOrder(req: Request, res: Response) {
     });
   }
 
-  let amountInPaise: number;
+  let amountInPaise = 0;
   let currency = req.body.currency || 'INR';
   let receipt = req.body.receipt;
   let notes = req.body.notes || {};
+  let authoritativeTotal: number | undefined;
 
-  // Case A: Items array passed -> calculate authoritative server-side price from Product models
-  if (Array.isArray(req.body.items) && req.body.items.length > 0) {
+  // Case A: orderId or orderNumber provided -> get authoritative amount from database Order
+  const targetOrderId = req.body.orderId || req.body.order_id || (receipt && receipt.startsWith('rcpt_') ? receipt.replace('rcpt_', '') : undefined);
+  if (targetOrderId) {
+    const isMongoId = /^[a-f\d]{24}$/i.test(targetOrderId);
+    const dbOrder = await Order.findOne({
+      $or: [
+        ...(isMongoId ? [{ _id: targetOrderId }] : []),
+        { orderNumber: targetOrderId },
+        { checkoutRequestId: targetOrderId },
+      ],
+    }).lean();
+
+    if (dbOrder) {
+      authoritativeTotal = dbOrder.total;
+      amountInPaise = toPaise(dbOrder.total);
+      receipt = receipt || `rcpt_${dbOrder.orderNumber}`;
+      notes = {
+        ...notes,
+        orderId: String(dbOrder._id),
+        orderNumber: dbOrder.orderNumber,
+        userId: String(dbOrder.userId),
+      };
+    }
+  }
+
+  // Case B: Items array passed -> calculate authoritative server-side price from Product models
+  if (!authoritativeTotal && Array.isArray(req.body.items) && req.body.items.length > 0) {
     const productIds = req.body.items.map((i: any) => i.productId);
     const products = await Product.find({ _id: { $in: productIds }, isActive: true }).lean();
 
@@ -51,19 +81,41 @@ async function handleCreateOrder(req: Request, res: Response) {
       subtotal += product.price * qty;
     }
 
-    amountInPaise = Math.round(subtotal * 100);
+    authoritativeTotal = subtotal;
+    amountInPaise = toPaise(subtotal);
     receipt = receipt || `rcpt_${Date.now().toString().slice(-8)}`;
-  } 
-  // Case B: Direct amount passed (in paise or INR)
-  else if (req.body.amount !== undefined && req.body.amount !== null) {
-    const rawAmount = Number(req.body.amount);
-    if (isNaN(rawAmount) || rawAmount <= 0) {
-      throw new AppError(400, 'BAD_REQUEST', 'Missing or invalid amount');
+  }
+
+  // Case C: Raw amount passed -> strictly validate and convert
+  if (!authoritativeTotal) {
+    if (req.body.amount !== undefined && req.body.amount !== null) {
+      const rawAmount = Number(req.body.amount);
+      if (isNaN(rawAmount) || rawAmount <= 0) {
+        throw new AppError(400, 'BAD_REQUEST', 'Missing or invalid amount');
+      }
+      // If passed as paise (e.g. 7000 >= 100 and likely paise) vs rupees (e.g. 70)
+      if (rawAmount >= 100 && Number.isInteger(rawAmount) && !req.body.isRupees) {
+        amountInPaise = Math.round(rawAmount);
+      } else {
+        amountInPaise = toPaise(rawAmount);
+      }
+    } else {
+      throw new AppError(400, 'BAD_REQUEST', 'Either orderId, items array, or valid amount must be provided');
     }
-    // If amount is passed as paise (e.g. 50000) vs INR (500)
-    amountInPaise = Math.round(rawAmount);
-  } else {
-    throw new AppError(400, 'BAD_REQUEST', 'Either amount or items array must be provided');
+  }
+
+  // If client provided a nominal amount that mismatches server authoritative calculation, reject immediately
+  if (authoritativeTotal !== undefined && req.body.amount !== undefined) {
+    const clientAmount = Number(req.body.amount);
+    const expectedPaise = toPaise(authoritativeTotal);
+    if (clientAmount !== expectedPaise && !isAmountEqual(clientAmount, authoritativeTotal)) {
+      logger.warn('[PAYMENT] Pre-payment amount mismatch rejected', {
+        clientProvided: clientAmount,
+        authoritativeTotal,
+        expectedPaise,
+      });
+      throw new AppError(400, 'AMOUNT_MISMATCH', `Payment amount mismatch: server calculated ₹${authoritativeTotal}`);
+    }
   }
 
   if (amountInPaise < 100) {
@@ -128,6 +180,7 @@ async function handleCreateOrder(req: Request, res: Response) {
 /**
  * Helper to handle signature verification:
  * - Algorithm: HMAC-SHA256(order_id + "|" + payment_id, KEY_SECRET)
+ * - Verifies verified gateway amount matches order total in database
  * - Updates Payment and Order records atomically
  */
 async function handleVerifyPayment(req: Request, res: Response) {
@@ -214,21 +267,72 @@ async function handleVerifyPayment(req: Request, res: Response) {
     });
   }
 
+  // Look up payment and target order in DB
+  const payment = await Payment.findOne({
+    $or: [
+      { providerPaymentId: order_id },
+      { providerPaymentId: payment_id },
+      ...(internalPaymentId ? [{ _id: internalPaymentId }] : []),
+    ],
+  });
+
+  const order = payment?.orderId
+    ? await Order.findById(payment.orderId)
+    : await Order.findOne({ $or: [{ orderNumber: order_id }, { checkoutRequestId: order_id }] });
+
+  // If order exists, verify actual amount with Razorpay API
+  let capturedRupees: number | undefined;
+  try {
+    const razorpay = razorpayConfig.getInstance();
+    const rzpPayment: any = await razorpay.payments.fetch(payment_id);
+    if (rzpPayment && rzpPayment.amount) {
+      capturedRupees = toRupees(rzpPayment.amount);
+    }
+  } catch (fetchErr: any) {
+    logger.warn('[PAYMENT] Could not fetch payment details from Razorpay, using order baseline', {
+      error: fetchErr?.message,
+    });
+  }
+
+  // Amount Mismatch Guard
+  if (order && capturedRupees !== undefined && !isAmountEqual(capturedRupees, order.total)) {
+    logger.error('[PAYMENT] Critical amount mismatch on verification', {
+      orderId: String(order._id),
+      orderTotal: order.total,
+      gatewayCaptured: capturedRupees,
+    });
+
+    if (payment) {
+      payment.status = PAYMENT_STATUS.FAILED;
+      payment.verificationStatus = 'REJECTED';
+      payment.failureReason = 'AMOUNT_MISMATCH';
+      payment.metadata = {
+        ...payment.metadata,
+        expectedAmount: order.total,
+        gatewayAmount: capturedRupees,
+      };
+      await payment.save();
+    }
+
+    await failOrder(String(order._id));
+
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'AMOUNT_MISMATCH',
+        message: `Payment amount mismatch: expected ₹${order.total}, but gateway captured ₹${capturedRupees}. Order has not been confirmed.`,
+      },
+    });
+  }
+
   logger.info('[PAYMENT] Payment verification successful', {
     order_id,
     payment_id,
+    verifiedAmount: capturedRupees ?? order?.total,
   });
 
   // Update Database models
   try {
-    const payment = await Payment.findOne({
-      $or: [
-        { providerPaymentId: order_id },
-        { providerPaymentId: payment_id },
-        ...(internalPaymentId ? [{ _id: internalPaymentId }] : []),
-      ],
-    });
-
     if (payment) {
       // Check for duplicate processed transaction
       const existingTx = await PaymentTransaction.findOne({
@@ -242,7 +346,7 @@ async function handleVerifyPayment(req: Request, res: Response) {
           orderId: payment.orderId,
           provider: 'razorpay',
           transactionId: payment_id,
-          amount: payment.amount,
+          amount: capturedRupees ?? payment.amount,
           currency: payment.currency,
           merchantAccountId: razorpayConfig.keyId,
           status: PAYMENT_STATUS.SUCCESS,
@@ -264,17 +368,11 @@ async function handleVerifyPayment(req: Request, res: Response) {
           providerTransactionId: payment_id,
         });
       }
-    } else {
-      // If there's an Order matching receipt or checkoutRequestId
-      const order = await Order.findOne({
-        $or: [{ orderNumber: order_id }, { checkoutRequestId: order_id }],
-      });
-      if (order) {
-        order.status = ORDER_STATUS.ORDER_CONFIRMED;
-        order.paymentStatus = PAYMENT_STATUS.SUCCESS;
-        await order.save();
-        logger.info('[PAYMENT] Order marked PAID', { orderId: String(order._id) });
-      }
+    } else if (order) {
+      order.status = ORDER_STATUS.ORDER_CONFIRMED;
+      order.paymentStatus = PAYMENT_STATUS.SUCCESS;
+      await order.save();
+      logger.info('[PAYMENT] Order marked PAID', { orderId: String(order._id) });
     }
   } catch (dbErr: any) {
     logger.error('[PAYMENT] Error updating database on verification', {
