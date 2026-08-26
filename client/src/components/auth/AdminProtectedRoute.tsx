@@ -10,7 +10,7 @@ interface AdminProtectedRouteProps {
 
 export function AdminProtectedRoute({ children, allowedRoles }: AdminProtectedRouteProps) {
   const location = useLocation();
-  const { adminUser, isLoading, isInitialized, loadAdminMe } = useAdminAuthStore();
+  const { adminUser, isLoading, isInitialized, adminAuthStatus, loadAdminMe } = useAdminAuthStore();
 
   useEffect(() => {
     if (!isInitialized) {
@@ -18,7 +18,7 @@ export function AdminProtectedRoute({ children, allowedRoles }: AdminProtectedRo
     }
   }, [isInitialized, loadAdminMe]);
 
-  if (!isInitialized || isLoading) {
+  if (!isInitialized || isLoading || adminAuthStatus === 'loading') {
     return (
       <div className="min-h-screen bg-stone-900 flex flex-col items-center justify-center gap-4 text-stone-200">
         <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
@@ -28,7 +28,7 @@ export function AdminProtectedRoute({ children, allowedRoles }: AdminProtectedRo
   }
 
   // Not authenticated as admin -> redirect to dedicated /admin/login
-  if (!adminUser) {
+  if (adminAuthStatus === 'unauthenticated' || !adminUser) {
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 

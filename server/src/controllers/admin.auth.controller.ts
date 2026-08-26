@@ -13,27 +13,16 @@ import { ROLE } from '../constants';
 import { User } from '../models';
 import { verifyPassword } from '../utils/crypto';
 
+import { getAuthCookieOptions, getClearCookieOptions } from '../utils/cookies';
+
 const ADMIN_REFRESH_COOKIE = 'adminRefreshToken';
 const ADMIN_ACCESS_COOKIE = 'adminAccessToken';
 
 const ADMIN_ALLOWED_ROLES = [ROLE.ADMIN, ROLE.SUPER_ADMIN, ROLE.STAFF];
 
 function setAdminAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
-  res.cookie(ADMIN_REFRESH_COOKIE, refreshToken, {
-    httpOnly: true,
-    secure: env.cookieSecure,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
-
-  res.cookie(ADMIN_ACCESS_COOKIE, accessToken, {
-    httpOnly: true,
-    secure: env.cookieSecure,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 15 * 60 * 1000,
-  });
+  res.cookie(ADMIN_REFRESH_COOKIE, refreshToken, getAuthCookieOptions(7 * 24 * 60 * 60 * 1000));
+  res.cookie(ADMIN_ACCESS_COOKIE, accessToken, getAuthCookieOptions(15 * 60 * 1000));
 }
 
 /**
@@ -115,6 +104,20 @@ export async function handleAdminMe(req: Request, res: Response) {
 export const adminMe = asyncHandler(handleAdminMe);
 
 /**
+ * Dedicated Admin Refresh Token Handler
+ */
+export async function handleAdminRefresh(req: Request, res: Response) {
+  const token = req.cookies?.[ADMIN_REFRESH_COOKIE] ?? req.cookies?.refreshToken;
+  if (!token) throw new UnauthorizedError('No admin refresh token provided');
+  const { refreshSession } = await import('../services/auth.service');
+  const { accessToken, refreshToken } = await refreshSession(token);
+  setAdminAuthCookies(res, accessToken, refreshToken);
+  return sendSuccess(res, { accessToken });
+}
+
+export const adminRefresh = asyncHandler(handleAdminRefresh);
+
+/**
  * Dedicated Admin Logout
  */
 export async function handleAdminLogout(req: Request, res: Response) {
@@ -122,10 +125,10 @@ export async function handleAdminLogout(req: Request, res: Response) {
   if (token) {
     await logoutSession(token);
   }
-  res.clearCookie(ADMIN_REFRESH_COOKIE, { path: '/' });
-  res.clearCookie(ADMIN_ACCESS_COOKIE, { path: '/' });
-  res.clearCookie('refreshToken', { path: '/' });
-  res.clearCookie('accessToken', { path: '/' });
+  res.clearCookie(ADMIN_REFRESH_COOKIE, getClearCookieOptions());
+  res.clearCookie(ADMIN_ACCESS_COOKIE, getClearCookieOptions());
+  res.clearCookie('refreshToken', getClearCookieOptions());
+  res.clearCookie('accessToken', getClearCookieOptions());
 
   if (req.userId) {
     await recordAudit({

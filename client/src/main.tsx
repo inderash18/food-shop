@@ -22,7 +22,9 @@ function AuthBootstrap() {
   const loadMe = useAuthStore((s) => s.loadMe);
 
   useEffect(() => {
-    if (!initialized) loadMe();
+    if (!window.location.pathname.startsWith('/admin')) {
+      if (!initialized) loadMe();
+    }
   }, [initialized, loadMe]);
 
   return null;

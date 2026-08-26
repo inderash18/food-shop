@@ -211,8 +211,8 @@ describe('Payment Amount Integrity & Separate Admin Portal Unit Tests', () => {
 
       await handleAdminLogout(req, res);
 
-      expect(res.clearCookie).toHaveBeenCalledWith('adminRefreshToken', { path: '/' });
-      expect(res.clearCookie).toHaveBeenCalledWith('adminAccessToken', { path: '/' });
+      expect(res.clearCookie).toHaveBeenCalledWith('adminRefreshToken', expect.objectContaining({ path: '/' }));
+      expect(res.clearCookie).toHaveBeenCalledWith('adminAccessToken', expect.objectContaining({ path: '/' }));
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,

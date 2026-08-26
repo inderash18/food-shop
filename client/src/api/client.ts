@@ -15,18 +15,50 @@ const client = axios.create({
 
 let accessToken: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
+let adminRefreshPromise: Promise<string | null> | null = null;
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
+  if (token) {
+    sessionStorage.setItem('studentAccessToken', token);
+  } else {
+    sessionStorage.removeItem('studentAccessToken');
+  }
 }
 
 export function getAccessToken(): string | null {
+  if (!accessToken) {
+    accessToken = sessionStorage.getItem('studentAccessToken') || null;
+  }
   return accessToken;
 }
 
+export function getAdminToken(): string | null {
+  return sessionStorage.getItem('adminAccessToken') || null;
+}
+
+export function setAdminToken(token: string | null): void {
+  if (token) {
+    sessionStorage.setItem('adminAccessToken', token);
+  } else {
+    sessionStorage.removeItem('adminAccessToken');
+  }
+}
+
 client.interceptors.request.use((config) => {
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
+  const url = config.url || '';
+  const isAdminRequest = url.includes('/admin') || url.startsWith('/api/admin');
+
+  if (isAdminRequest) {
+    const adminTok = getAdminToken();
+    if (adminTok) {
+      config.headers.Authorization = `Bearer ${adminTok}`;
+    }
+  } else {
+    const studentTok = getAccessToken();
+    if (studentTok) {
+      config.headers.Authorization = `Bearer ${studentTok}`;
+    }
   }
   return config;
 });
@@ -38,31 +70,71 @@ async function tryRefresh(): Promise<string | null> {
     if (token) setAccessToken(token);
     return token;
   } catch {
+    setAccessToken(null);
+    return null;
+  }
+}
+
+async function tryAdminRefresh(): Promise<string | null> {
+  try {
+    const res = await axios.post(`${baseURL}/api/admin/refresh`, undefined, { withCredentials: true, timeout: 10000 });
+    const token = res.data?.data?.accessToken as string;
+    if (token) setAdminToken(token);
+    return token;
+  } catch {
+    setAdminToken(null);
     return null;
   }
 }
 
 client.interceptors.response.use(
   (res) => {
-    const newToken = res.headers?.['x-new-access-token'];
+    const newToken = res.headers?.['x-new-access-token'] || res.headers?.['X-New-Access-Token'];
     if (newToken) {
-      setAccessToken(newToken);
+      const url = res.config?.url || '';
+      if (url.includes('/admin') || url.startsWith('/api/admin')) {
+        setAdminToken(newToken);
+      } else {
+        setAccessToken(newToken);
+      }
     }
     return res;
   },
   async (error: AxiosError<ApiError>) => {
     const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
     const status = error.response?.status;
+    const url = original?.url || '';
 
-    if (status === 401 && original && !original._retry && !String(original.url).includes('/auth/login') && !String(original.url).includes('/auth/refresh')) {
+    if (
+      status === 401 &&
+      original &&
+      !original._retry &&
+      !url.includes('/auth/login') &&
+      !url.includes('/admin/login') &&
+      !url.includes('/auth/refresh') &&
+      !url.includes('/admin/refresh')
+    ) {
       original._retry = true;
-      if (!refreshPromise) refreshPromise = tryRefresh();
-      const token = await refreshPromise;
-      refreshPromise = null;
-      if (token) {
-        original.headers = original.headers || {};
-        original.headers.Authorization = `Bearer ${token}`;
-        return client(original);
+      const isAdminRoute = url.includes('/admin') || url.startsWith('/api/admin');
+
+      if (isAdminRoute) {
+        if (!adminRefreshPromise) adminRefreshPromise = tryAdminRefresh();
+        const token = await adminRefreshPromise;
+        adminRefreshPromise = null;
+        if (token) {
+          original.headers = original.headers || {};
+          original.headers.Authorization = `Bearer ${token}`;
+          return client(original);
+        }
+      } else {
+        if (!refreshPromise) refreshPromise = tryRefresh();
+        const token = await refreshPromise;
+        refreshPromise = null;
+        if (token) {
+          original.headers = original.headers || {};
+          original.headers.Authorization = `Bearer ${token}`;
+          return client(original);
+        }
       }
     }
 

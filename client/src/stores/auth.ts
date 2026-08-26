@@ -2,10 +2,13 @@ import { create } from 'zustand';
 import { apiPost, apiGet, setAccessToken } from '../api/client';
 import type { User } from '../lib/types';
 
+export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+
 interface AuthState {
   user: User | null;
   loading: boolean;
   initialized: boolean;
+  authStatus: AuthStatus;
   sendOtp: (mobileNumber: string, purpose?: 'login' | 'register') => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
   verifyOtp: (mobileNumber: string, otp: string, name?: string) => Promise<User>;
   sendEmailOTP: (email: string, purpose?: 'login' | 'register') => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
@@ -28,8 +31,9 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  loading: false,
+  loading: true,
   initialized: false,
+  authStatus: 'loading',
 
   sendOtp: async (mobileNumber, purpose = 'login') => {
     const res = await apiPost<{ cooldownSeconds: number; expiresInSeconds: number }>('/api/auth/send-otp', { mobileNumber, purpose });
@@ -41,7 +45,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (data.accessToken) {
       setAccessToken(data.accessToken);
     }
-    set({ user: data.user, initialized: true });
+    set({ user: data.user, initialized: true, authStatus: 'authenticated', loading: false });
     return data.user;
   },
 
@@ -62,7 +66,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (data.accessToken) {
       setAccessToken(data.accessToken);
     }
-    set({ user: data.user, initialized: true });
+    set({ user: data.user, initialized: true, authStatus: 'authenticated', loading: false });
     return data.user;
   },
 
@@ -81,7 +85,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (data.accessToken) {
       setAccessToken(data.accessToken);
     }
-    set({ user: data.user, initialized: true });
+    set({ user: data.user, initialized: true, authStatus: 'authenticated', loading: false });
     return data.user;
   },
 
@@ -92,9 +96,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   login: async (identifier, password) => {
     const data = await apiPost<{ accessToken: string }>('/api/auth/login', { identifier, password });
-    setAccessToken(data.accessToken);
+    if (data?.accessToken) {
+      setAccessToken(data.accessToken);
+    }
     const me = await apiGet<{ user: User }>('/api/auth/me');
-    set({ user: me.user, initialized: true });
+    set({ user: me.user, initialized: true, authStatus: 'authenticated', loading: false });
     return me.user;
   },
 
@@ -103,7 +109,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (data?.accessToken) {
       setAccessToken(data.accessToken);
     }
-    set({ user: data.user, initialized: true });
+    set({ user: data.user, initialized: true, authStatus: 'authenticated', loading: false });
     return data.user;
   },
 
@@ -114,17 +120,19 @@ export const useAuthStore = create<AuthState>((set) => ({
       // ignore network errors on logout
     }
     setAccessToken(null);
-    set({ user: null, initialized: true });
+    set({ user: null, initialized: true, authStatus: 'unauthenticated', loading: false });
   },
 
   loadMe: async () => {
+    set({ loading: true });
     try {
       const me = await apiGet<{ user: User }>('/api/auth/me');
-      set({ user: me.user, initialized: true });
+      set({ user: me.user, initialized: true, authStatus: 'authenticated', loading: false });
     } catch {
-      set({ user: null, initialized: true });
+      setAccessToken(null);
+      set({ user: null, initialized: true, authStatus: 'unauthenticated', loading: false });
     }
   },
 
-  setUser: (user) => set({ user }),
+  setUser: (user) => set({ user, authStatus: user ? 'authenticated' : 'unauthenticated' }),
 }));

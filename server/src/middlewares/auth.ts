@@ -13,9 +13,11 @@ declare global {
 
 import { env } from '../config/env';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors';
+import { getAuthCookieOptions } from '../utils/cookies';
 
 /**
  * Authenticates the request via Bearer header or HTTP-only auth cookies.
+ * Supports both student (accessToken/refreshToken) and admin (adminAccessToken/adminRefreshToken).
  * Sets req.userId and req.userRole.
  */
 export function requireAuth(): RequestHandler {
@@ -25,6 +27,8 @@ export function requireAuth(): RequestHandler {
     const header = req.headers.authorization;
     if (header?.startsWith('Bearer ')) {
       token = header.slice(7);
+    } else if (req.cookies?.adminAccessToken) {
+      token = req.cookies.adminAccessToken;
     } else if (req.cookies?.accessToken) {
       token = req.cookies.accessToken;
     } else if (req.cookies?.token) {
@@ -42,29 +46,15 @@ export function requireAuth(): RequestHandler {
       }
     }
 
-    // Check refresh token cookie if access token was missing or expired
-    const refreshToken = req.cookies?.refreshToken;
-    if (refreshToken) {
+    // Check admin refresh token cookie
+    const adminRefreshToken = req.cookies?.adminRefreshToken;
+    if (adminRefreshToken) {
       try {
         const { refreshSession } = await import('../services/auth.service');
-        const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await refreshSession(refreshToken);
+        const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await refreshSession(adminRefreshToken);
 
-        res.cookie('refreshToken', newRefreshToken, {
-          httpOnly: true,
-          secure: env.cookieSecure,
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-        });
-
-        res.cookie('accessToken', newAccessToken, {
-          httpOnly: true,
-          secure: env.cookieSecure,
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 15 * 60 * 1000,
-        });
-
+        res.cookie('adminRefreshToken', newRefreshToken, getAuthCookieOptions(7 * 24 * 60 * 60 * 1000));
+        res.cookie('adminAccessToken', newAccessToken, getAuthCookieOptions(15 * 60 * 1000));
         res.setHeader('X-New-Access-Token', newAccessToken);
 
         const payload = verifyAccessToken(newAccessToken);
@@ -72,7 +62,27 @@ export function requireAuth(): RequestHandler {
         req.userRole = payload.role;
         return next();
       } catch {
-        // Refresh token was also invalid/expired
+        // Admin refresh token invalid or expired
+      }
+    }
+
+    // Check student refresh token cookie
+    const refreshToken = req.cookies?.refreshToken;
+    if (refreshToken) {
+      try {
+        const { refreshSession } = await import('../services/auth.service');
+        const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await refreshSession(refreshToken);
+
+        res.cookie('refreshToken', newRefreshToken, getAuthCookieOptions(7 * 24 * 60 * 60 * 1000));
+        res.cookie('accessToken', newAccessToken, getAuthCookieOptions(15 * 60 * 1000));
+        res.setHeader('X-New-Access-Token', newAccessToken);
+
+        const payload = verifyAccessToken(newAccessToken);
+        req.userId = payload.sub;
+        req.userRole = payload.role;
+        return next();
+      } catch {
+        // Student refresh token invalid or expired
       }
     }
 

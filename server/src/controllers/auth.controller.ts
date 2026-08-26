@@ -20,28 +20,17 @@ import { sendMsg91OTP, verifyMsg91OTP, resendMsg91OTP } from '../services/msg91.
 import { env } from '../config/env';
 import { AppError } from '../utils/errors';
 import { recordAudit } from '../services/audit.service';
+import { getAuthCookieOptions, getClearCookieOptions } from '../utils/cookies';
 
 const REFRESH_COOKIE = 'refreshToken';
 const ACCESS_COOKIE = 'accessToken';
 
 function setAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
   // Set refresh token cookie (7 days)
-  res.cookie(REFRESH_COOKIE, refreshToken, {
-    httpOnly: true,
-    secure: env.cookieSecure,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  res.cookie(REFRESH_COOKIE, refreshToken, getAuthCookieOptions(7 * 24 * 60 * 60 * 1000));
 
   // Set access token cookie (15 minutes)
-  res.cookie(ACCESS_COOKIE, accessToken, {
-    httpOnly: true,
-    secure: env.cookieSecure,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 15 * 60 * 1000,
-  });
+  res.cookie(ACCESS_COOKIE, accessToken, getAuthCookieOptions(15 * 60 * 1000));
 }
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
@@ -72,9 +61,8 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
   if (token) {
     await logoutSession(token);
   }
-  res.clearCookie(REFRESH_COOKIE, { path: '/' });
-  res.clearCookie(ACCESS_COOKIE, { path: '/' });
-  res.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
+  res.clearCookie(REFRESH_COOKIE, getClearCookieOptions());
+  res.clearCookie(ACCESS_COOKIE, getClearCookieOptions());
   if (req.userId) {
     await recordAudit({ actorId: req.userId, action: 'LOGOUT', resource: 'user', resourceId: req.userId });
   }

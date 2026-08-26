@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { adminLogin, adminMe, adminLogout } from '../controllers/admin.auth.controller';
+import { adminLogin, adminMe, adminLogout, adminRefresh } from '../controllers/admin.auth.controller';
 import { validate } from '../middlewares/validate';
 import { loginSchema } from '../validators/auth.schema';
 import { requireAuth, requireRole } from '../middlewares/auth';
@@ -26,6 +26,9 @@ router.get(
   requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN, ROLE.STAFF),
   adminMe
 );
+
+// Dedicated Admin Refresh Session route
+router.post('/refresh', adminRefresh);
 
 // Dedicated Admin Logout route
 router.post('/logout', adminLogout);

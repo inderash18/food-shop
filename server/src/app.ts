@@ -46,6 +46,7 @@ export function createApp(): express.Application {
         if (!origin) return callback(null, true);
         const allowedOrigins = [
           env.clientUrl,
+          'https://food-shop-inky.vercel.app',
           'http://localhost:5173',
           'http://127.0.0.1:5173',
           'http://localhost:3000',
@@ -61,7 +62,7 @@ export function createApp(): express.Application {
         return callback(null, true);
       },
       credentials: true,
-      exposedHeaders: ['X-New-Access-Token'],
+      exposedHeaders: ['X-New-Access-Token', 'x-new-access-token'],
     })
   );
   app.use(express.json({ limit: '100kb' }));

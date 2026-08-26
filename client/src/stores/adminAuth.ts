@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import apiClient, { getErrorMessage } from '../api/client';
+import apiClient, { getErrorMessage, setAdminToken, getAdminToken } from '../api/client';
 
 export interface AdminUser {
   id: string;
@@ -11,11 +11,14 @@ export interface AdminUser {
   avatarUrl?: string;
 }
 
+export type AdminAuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+
 interface AdminAuthState {
   adminUser: AdminUser | null;
   adminToken: string | null;
   isLoading: boolean;
   isInitialized: boolean;
+  adminAuthStatus: AdminAuthStatus;
   error: string | null;
   loginAdmin: (identifier: string, password: string) => Promise<AdminUser>;
   logoutAdmin: () => Promise<void>;
@@ -23,11 +26,12 @@ interface AdminAuthState {
   clearError: () => void;
 }
 
-export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
+export const useAdminAuthStore = create<AdminAuthState>((set) => ({
   adminUser: null,
-  adminToken: sessionStorage.getItem('adminAccessToken') || null,
+  adminToken: getAdminToken(),
   isLoading: false,
   isInitialized: false,
+  adminAuthStatus: 'loading',
   error: null,
 
   loginAdmin: async (identifier: string, password: string) => {
@@ -39,7 +43,7 @@ export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
       const token = data.accessToken;
 
       if (token) {
-        sessionStorage.setItem('adminAccessToken', token);
+        setAdminToken(token);
       }
 
       set({
@@ -47,14 +51,15 @@ export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
         adminToken: token || null,
         isLoading: false,
         isInitialized: true,
+        adminAuthStatus: 'authenticated',
         error: null,
       });
 
       return user;
     } catch (err: any) {
       const msg = getErrorMessage(err) || 'Admin authentication failed';
-      set({ isLoading: false, error: msg, adminUser: null, adminToken: null });
-      sessionStorage.removeItem('adminAccessToken');
+      setAdminToken(null);
+      set({ isLoading: false, error: msg, adminUser: null, adminToken: null, adminAuthStatus: 'unauthenticated' });
       throw new Error(msg);
     }
   },
@@ -65,11 +70,23 @@ export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
       const res = await apiClient.get('/api/admin/me');
       const data = res.data?.data || res.data;
       const user = data.user;
-      set({ adminUser: user, isLoading: false, isInitialized: true, error: null });
+      set({
+        adminUser: user,
+        isLoading: false,
+        isInitialized: true,
+        adminAuthStatus: 'authenticated',
+        error: null,
+      });
       return user;
     } catch (err) {
-      set({ adminUser: null, adminToken: null, isLoading: false, isInitialized: true });
-      sessionStorage.removeItem('adminAccessToken');
+      setAdminToken(null);
+      set({
+        adminUser: null,
+        adminToken: null,
+        isLoading: false,
+        isInitialized: true,
+        adminAuthStatus: 'unauthenticated',
+      });
       return null;
     }
   },
@@ -80,8 +97,15 @@ export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
     } catch {
       // ignore network errors on logout
     } finally {
-      sessionStorage.removeItem('adminAccessToken');
-      set({ adminUser: null, adminToken: null, isInitialized: true, error: null });
+      setAdminToken(null);
+      set({
+        adminUser: null,
+        adminToken: null,
+        isInitialized: true,
+        isLoading: false,
+        adminAuthStatus: 'unauthenticated',
+        error: null,
+      });
     }
   },
 
