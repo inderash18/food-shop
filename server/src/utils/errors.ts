@@ -22,7 +22,8 @@ export type ErrorCode =
   | 'INVALID_OTP_FORMAT'
   | 'OTP_EXPIRED'
   | 'MAX_ATTEMPTS_EXCEEDED'
-  | 'INVALID_OTP';
+  | 'INVALID_OTP'
+  | 'EMAIL_DISPATCH_FAILED';
 
 export class AppError extends Error {
   public readonly statusCode: number;

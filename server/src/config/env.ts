@@ -41,6 +41,12 @@ export const env = {
 
   cookieSecure: bool(process.env.COOKIE_SECURE, false),
 
+  gmailUser: process.env.GMAIL_USER ?? '',
+  gmailAppPassword: process.env.GMAIL_APP_PASSWORD ?? '',
+  otpExpiry: parseInt(process.env.OTP_EXPIRY ?? '300', 10),
+  otpResendCooldown: parseInt(process.env.OTP_RESEND_COOLDOWN ?? '60', 10),
+  otpMaxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS ?? '5', 10),
+
   rateLimitLoginMax: parseInt(process.env.RATE_LIMIT_LOGIN_MAX ?? '10', 10),
   rateLimitLoginWindowMs: parseInt(process.env.RATE_LIMIT_LOGIN_WINDOW_MS ?? '900000', 10),
   rateLimitGeneralMax: parseInt(process.env.RATE_LIMIT_GENERAL_MAX ?? '300', 10),

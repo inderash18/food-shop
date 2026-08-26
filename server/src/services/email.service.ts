@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { env } from '../config/env';
 import { logger } from '../config/logger';
 
 interface SendEmailOtpInput {
@@ -11,8 +12,8 @@ interface SendEmailOtpInput {
  * Creates Nodemailer transporter using Gmail SMTP and Google App Password.
  */
 function createTransporter() {
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
+  const user = env.gmailUser || process.env.GMAIL_USER;
+  const pass = env.gmailAppPassword || process.env.GMAIL_APP_PASSWORD;
 
   if (!user || !pass || pass === 'mock' || pass === 'your_google_app_password') {
     return null;

@@ -18,7 +18,16 @@ import {
   resendPhoneOtp,
 } from '../controllers/auth.controller';
 import { validate } from '../middlewares/validate';
-import { registerSchema, loginSchema, createAdminSchema, updateProfileSchema, changePasswordSchema } from '../validators/auth.schema';
+import {
+  registerSchema,
+  loginSchema,
+  createAdminSchema,
+  updateProfileSchema,
+  changePasswordSchema,
+  sendEmailOtpSchema,
+  verifyEmailOtpSchema,
+  resendEmailOtpSchema,
+} from '../validators/auth.schema';
 import { requireAuth } from '../middlewares/auth';
 import { loadUser } from '../middlewares/loadUser';
 import { requireRole } from '../middlewares/auth';
@@ -59,16 +68,19 @@ router.post(
 router.post(
   '/send-email-otp',
   rateLimit({ windowMs: 5 * 60 * 1000, max: 10, keyPrefix: 'send_email_otp' }),
+  validate(sendEmailOtpSchema),
   sendEmailOtp
 );
 router.post(
   '/verify-email-otp',
   rateLimit({ windowMs: 5 * 60 * 1000, max: 15, keyPrefix: 'verify_email_otp' }),
+  validate(verifyEmailOtpSchema),
   verifyEmailOtp
 );
 router.post(
   '/resend-email-otp',
   rateLimit({ windowMs: 5 * 60 * 1000, max: 10, keyPrefix: 'resend_email_otp' }),
+  validate(resendEmailOtpSchema),
   resendEmailOtp
 );
 

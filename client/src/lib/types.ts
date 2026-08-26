@@ -20,6 +20,8 @@ export interface User {
   name: string;
   email: string;
   phone?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
   avatarUrl?: string;
   role: Role;
   isActive: boolean;

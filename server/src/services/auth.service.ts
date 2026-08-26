@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { randomUUID, randomBytes } from 'crypto';
 import { User, RefreshToken } from '../models';
 import { hashPassword, verifyPassword, generateId } from '../utils/crypto';
@@ -27,8 +28,28 @@ export async function requestAuthOtp(rawPhone: string, purpose: 'register' | 'lo
 
 export async function sendEmailAuthOtp(rawEmail: string, purpose: 'register' | 'login' = 'login') {
   const email = rawEmail.trim().toLowerCase();
+  assertDomainAllowed(email);
+
+  if (purpose === 'register') {
+    const existing = await User.findOne({
+      $or: [{ email }, { emailNormalized: email }],
+    });
+    if (existing && existing.emailVerified) {
+      throw new ConflictError('An account with this email address already exists. Please log in.');
+    }
+  }
+
   const res = await requestOtp(email, purpose);
-  await sendVerificationOTP({ email, otp: res.otpCode });
+  const emailResult = await sendVerificationOTP({ email, otp: res.otpCode });
+
+  if (!emailResult.success) {
+    logger.error('Failed to dispatch verification email', { email, error: emailResult.error });
+    // In production with real mail failure, inform the user cleanly
+    if (env.isProd) {
+      throw new AppError(500, 'EMAIL_DISPATCH_FAILED', 'Unable to send verification email. Please try again later.');
+    }
+  }
+
   return {
     email,
     cooldownSeconds: res.cooldownSeconds,
@@ -36,9 +57,15 @@ export async function sendEmailAuthOtp(rawEmail: string, purpose: 'register' | '
   };
 }
 
-export async function verifyEmailAuthOtp(rawEmail: string, otp: string, extra?: { name?: string; password?: string }) {
+export async function verifyEmailAuthOtp(
+  rawEmail: string,
+  otp: string,
+  extra?: { name?: string; password?: string; studentId?: string; purpose?: 'register' | 'login' | 'admin' }
+) {
   const email = rawEmail.trim().toLowerCase();
-  await verifyOtpCode(email, otp);
+  const purpose = extra?.purpose || 'login';
+
+  await verifyOtpCode(email, otp, purpose);
 
   let user = await User.findOne({
     $or: [{ email }, { emailNormalized: email }],
@@ -46,13 +73,15 @@ export async function verifyEmailAuthOtp(rawEmail: string, otp: string, extra?: 
 
   if (!user) {
     const username = extra?.name?.trim() || email.split('@')[0];
+    const studentId = extra?.studentId?.trim().toUpperCase() || `STU${Date.now().toString().slice(-6)}`;
     const passwordHash = extra?.password ? await hashPassword(extra.password) : undefined;
     user = await User.create({
       name: username,
       email,
       emailNormalized: email,
+      studentId,
       emailVerified: true,
-      phoneVerified: true,
+      phoneVerified: false,
       passwordHash,
       role: ROLE.STUDENT,
       isActive: true,
@@ -66,6 +95,12 @@ export async function verifyEmailAuthOtp(rawEmail: string, otp: string, extra?: 
     user.emailVerified = true;
     if (extra?.name && extra.name.trim().length >= 2) {
       user.name = extra.name.trim();
+    }
+    if (extra?.studentId && extra.studentId.trim().length >= 2 && !user.studentId) {
+      user.studentId = extra.studentId.trim().toUpperCase();
+    }
+    if (extra?.password && !user.passwordHash) {
+      user.passwordHash = await hashPassword(extra.password);
     }
     await user.save();
     await user.updateOne({ $set: { lastLoginAt: new Date() } });
@@ -189,11 +224,13 @@ export async function issueTokenPair(userId: string, role: Role) {
   const refreshToken = signRefreshToken(userId, tokenId);
 
   const ttlMs = parseTtl(env.jwtRefreshExpiresIn);
-  await RefreshToken.create({
-    userId,
-    tokenId,
-    expiresAt: new Date(Date.now() + ttlMs),
-  });
+  if (mongoose.connection.readyState === 1) {
+    await RefreshToken.create({
+      userId,
+      tokenId,
+      expiresAt: new Date(Date.now() + ttlMs),
+    });
+  }
 
   return { accessToken, refreshToken };
 }

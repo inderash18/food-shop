@@ -2,7 +2,9 @@ import { Schema, model, models, Types, Model } from 'mongoose';
 
 export interface IOtpToken {
   _id: Types.ObjectId;
-  mobileNumber: string; // Normalized +91XXXXXXXXXX
+  email?: string; // Normalized lowercase email address
+  mobileNumber?: string; // Backward compatibility / normalized phone
+  target: string; // Identifier (normalized email or phone)
   otpHash: string;
   attempts: number;
   maxAttempts: number;
@@ -16,7 +18,9 @@ export interface IOtpToken {
 
 const otpTokenSchema = new Schema<IOtpToken>(
   {
-    mobileNumber: { type: String, required: true, index: true },
+    email: { type: String, trim: true, lowercase: true, sparse: true, index: true },
+    mobileNumber: { type: String, trim: true, sparse: true, index: true },
+    target: { type: String, required: true, trim: true, lowercase: true, index: true },
     otpHash: { type: String, required: true },
     attempts: { type: Number, default: 0 },
     maxAttempts: { type: Number, default: 5 },
@@ -28,6 +32,9 @@ const otpTokenSchema = new Schema<IOtpToken>(
   { timestamps: true }
 );
 
+otpTokenSchema.index({ target: 1, purpose: 1 });
+otpTokenSchema.index({ email: 1, purpose: 1 });
 otpTokenSchema.index({ mobileNumber: 1, purpose: 1 });
 
 export const OtpToken = (models.OtpToken ?? model<IOtpToken>('OtpToken', otpTokenSchema)) as Model<IOtpToken>;
+

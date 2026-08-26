@@ -9,7 +9,12 @@ interface AuthState {
   sendOtp: (mobileNumber: string, purpose?: 'login' | 'register') => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
   verifyOtp: (mobileNumber: string, otp: string, name?: string) => Promise<User>;
   sendEmailOTP: (email: string, purpose?: 'login' | 'register') => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
-  verifyEmailOTP: (email: string, otp: string, name?: string, password?: string) => Promise<User>;
+  verifyEmailOTP: (
+    email: string,
+    otp: string,
+    extra?: { name?: string; studentId?: string; password?: string; purpose?: 'login' | 'register' | 'admin' } | string,
+    password?: string
+  ) => Promise<User>;
   resendEmailOTP: (email: string, purpose?: 'login' | 'register') => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
   sendPhoneOTP: (phone: string, purpose?: 'login' | 'register') => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
   verifyPhoneOTP: (phone: string, otp: string, name?: string) => Promise<User>;
@@ -45,8 +50,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     return res;
   },
 
-  verifyEmailOTP: async (email, otp, name, password) => {
-    const data = await apiPost<{ user: User; accessToken: string }>('/api/auth/verify-email-otp', { email, otp, name, password });
+  verifyEmailOTP: async (email, otp, extraOrName, password) => {
+    let payload: Record<string, any> = { email, otp };
+    if (typeof extraOrName === 'string') {
+      payload.name = extraOrName;
+      if (password) payload.password = password;
+    } else if (extraOrName && typeof extraOrName === 'object') {
+      payload = { ...payload, ...extraOrName };
+    }
+    const data = await apiPost<{ user: User; accessToken: string }>('/api/auth/verify-email-otp', payload);
     if (data.accessToken) {
       setAccessToken(data.accessToken);
     }

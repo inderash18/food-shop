@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Phone, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Loader2, RefreshCw, KeyRound } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { getErrorMessage } from '../../api/client';
 import { toast } from '../../components/ui/Toast';
@@ -10,12 +10,16 @@ import { OtpInput } from '../../components/auth/OtpInput';
 export function LoginPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const sendOtp = useAuthStore((s) => s.sendOtp);
-  const verifyOtp = useAuthStore((s) => s.verifyOtp);
+  const loginWithPassword = useAuthStore((s) => s.login);
+  const sendEmailOTP = useAuthStore((s) => s.sendEmailOTP);
+  const verifyEmailOTP = useAuthStore((s) => s.verifyEmailOTP);
 
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [authMethod, setAuthMethod] = useState<'PASSWORD' | 'EMAIL_OTP'>('PASSWORD');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'MOBILE' | 'OTP'>('MOBILE');
+  const [step, setStep] = useState<'INPUT' | 'OTP'>('INPUT');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [cooldown, setCooldown] = useState(0);
@@ -35,20 +39,45 @@ export function LoginPage() {
     }
   }, [cooldown]);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    const cleaned = mobileNumber.trim().replace(/\D/g, '');
-    if (cleaned.length < 10) {
-      setError('Please enter a valid 10-digit mobile number');
+    if (!identifier.trim()) {
+      setError('Please enter your email or Student ID');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password');
       return;
     }
 
     setLoading(true);
     try {
-      const res = await sendOtp(cleaned, 'login');
-      toast.success('OTP sent successfully to your mobile number!');
+      const loggedUser = await loginWithPassword(identifier.trim(), password);
+      toast.success(`Welcome back, ${loggedUser.name}!`);
+      navigate(loggedUser.role === 'STUDENT' ? '/' : '/admin', { replace: true });
+    } catch (err: any) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendEmailOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setError('');
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await sendEmailOTP(cleanEmail, 'login');
+      toast.success('Verification code sent to your email!');
       setStep('OTP');
       setCooldown(res.cooldownSeconds || 60);
     } catch (err: any) {
@@ -58,18 +87,19 @@ export function LoginPage() {
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  const handleVerifyEmailOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (otp.trim().length !== 6) {
-      setError('Please enter the 6-digit OTP code sent to your phone');
+      setError('Please enter the 6-digit verification code');
       return;
     }
 
     setLoading(true);
     try {
-      const loggedUser = await verifyOtp(mobileNumber, otp.trim());
+      const cleanEmail = email.trim().toLowerCase();
+      const loggedUser = await verifyEmailOTP(cleanEmail, otp.trim(), { purpose: 'login' });
       toast.success(`Welcome back, ${loggedUser.name}!`);
       navigate(loggedUser.role === 'STUDENT' ? '/' : '/admin', { replace: true });
     } catch (err: any) {
@@ -77,6 +107,15 @@ export function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const maskEmail = (raw: string) => {
+    const clean = raw.trim().toLowerCase();
+    const parts = clean.split('@');
+    if (parts.length !== 2) return clean;
+    const [local, domain] = parts;
+    const visiblePrefix = local.slice(0, Math.min(2, local.length));
+    return `${visiblePrefix}***@${domain}`;
   };
 
   return (
@@ -88,8 +127,38 @@ export function LoginPage() {
             <BrandLogo size="lg" />
           </Link>
           <h1 className="text-2xl font-bold text-darkText tracking-tight">Customer Sign In</h1>
-          <p className="text-xs text-gray-500">Sign in quickly with your 10-digit mobile number.</p>
+          <p className="text-xs text-gray-500">Sign in to your account with password or email OTP.</p>
         </div>
+
+        {/* Mode Selector Tabs */}
+        {step === 'INPUT' && (
+          <div className="flex bg-stone-200/70 p-1 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMethod('PASSWORD');
+                setError('');
+              }}
+              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+                authMethod === 'PASSWORD' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              Password Login
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMethod('EMAIL_OTP');
+                setError('');
+              }}
+              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+                authMethod === 'EMAIL_OTP' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              Email OTP
+            </button>
+          </div>
+        )}
 
         {/* Auth Card */}
         <div className="bg-white rounded-3xl border border-gray-100 shadow-2xs p-6 sm:p-7 space-y-4">
@@ -99,51 +168,103 @@ export function LoginPage() {
             </div>
           )}
 
-          {step === 'MOBILE' ? (
-            <form onSubmit={handleSendOtp} className="space-y-4 text-xs">
+          {authMethod === 'PASSWORD' ? (
+            <form onSubmit={handlePasswordLogin} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-gray-700 mb-1.5">Mobile Number</label>
+                <label className="block font-semibold text-gray-700 mb-1">Email or Student ID</label>
                 <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-gray-500 font-semibold border-r pr-2 border-gray-200">
-                    <Phone className="w-3.5 h-3.5 text-gray-400" />
-                    <span>+91</span>
-                  </div>
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
-                    type="tel"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                    placeholder="9876543210"
-                    maxLength={10}
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="alex@gmail.com or STU1024"
                     required
                     autoFocus
-                    className="w-full pl-16 pr-3.5 py-3 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-semibold tracking-wider text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-normal text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
                   />
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={loading || mobileNumber.trim().length < 10}
-                className="w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-stone-950 font-bold text-xs sm:text-sm rounded-xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50 border border-amber-300"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Sending OTP...
-                  </>
-                ) : (
-                  <>
-                    Send OTP <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-normal text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 bg-[#FEDB71] hover:bg-[#F5CA38] text-stone-950 font-bold text-xs sm:text-sm rounded-xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50 border border-amber-300"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Signing In...
+                    </>
+                  ) : (
+                    <>
+                      Sign In <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          ) : step === 'INPUT' ? (
+            <form onSubmit={handleSendEmailOtp} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Email / Gmail Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="alex@gmail.com"
+                    required
+                    autoFocus
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-normal text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 bg-[#FEDB71] hover:bg-[#F5CA38] text-stone-950 font-bold text-xs sm:text-sm rounded-xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50 border border-amber-300"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Sending Code...
+                    </>
+                  ) : (
+                    <>
+                      Send Login Code <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           ) : (
-            <form onSubmit={handleVerifyOtp} className="space-y-4 text-xs">
-              <div className="text-center space-y-1">
-                <h3 className="font-bold text-darkText text-sm">Verify your phone</h3>
+            <form onSubmit={handleVerifyEmailOtp} className="space-y-4 text-xs">
+              <div className="text-center space-y-1.5">
+                <div className="w-10 h-10 bg-teal-50 text-[#389C9A] rounded-full flex items-center justify-center mx-auto mb-2">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-darkText text-sm">Verify your email address</h3>
                 <p className="text-[11px] text-gray-500">
-                  Enter the 6-digit verification code sent to <br />
-                  <span className="font-mono font-bold text-stone-800">+91 ******{mobileNumber.slice(-4)}</span>
+                  Enter the 6-digit code sent to <br />
+                  <span className="font-mono font-bold text-stone-800">{maskEmail(email)}</span>
                 </p>
 
                 {/* 6-Digit Accessible OTP Input */}
@@ -152,19 +273,19 @@ export function LoginPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setStep('MOBILE');
+                    setStep('INPUT');
                     setOtp('');
                   }}
                   className="text-[11px] text-[#389C9A] hover:underline font-semibold pt-1"
                 >
-                  Change Number
+                  Change Email
                 </button>
               </div>
 
               <button
                 type="submit"
                 disabled={loading || otp.trim().length !== 6}
-                className="w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-stone-950 font-bold text-xs sm:text-sm rounded-xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50 border border-amber-300"
+                className="w-full py-3 bg-[#FEDB71] hover:bg-[#F5CA38] text-stone-950 font-bold text-xs sm:text-sm rounded-xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50 border border-amber-300"
               >
                 {loading ? (
                   <>
@@ -172,20 +293,20 @@ export function LoginPage() {
                   </>
                 ) : (
                   <>
-                    Verify & Login <ArrowRight className="w-4 h-4" />
+                    Verify & Sign In <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
 
-              <div className="pt-2 text-center">
+              <div className="pt-1 text-center">
                 <button
                   type="button"
                   disabled={cooldown > 0 || loading}
-                  onClick={handleSendOtp}
+                  onClick={() => handleSendEmailOtp()}
                   className="text-xs text-[#389C9A] hover:underline font-semibold disabled:opacity-50 inline-flex items-center gap-1"
                 >
                   <RefreshCw className="w-3 h-3" />
-                  {cooldown > 0 ? `Resend OTP in ${cooldown}s` : 'Resend OTP'}
+                  {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend Code'}
                 </button>
               </div>
             </form>
@@ -211,3 +332,4 @@ export function LoginPage() {
     </div>
   );
 }
+

@@ -36,3 +36,23 @@ export const updateProfileSchema = z.object({
   phone: z.string().trim().regex(/^[+\d\s-]{7,20}$/, 'Enter a valid phone number').optional().or(z.literal('')),
   avatarUrl: z.string().max(2_000_000, 'Image is too large').optional().nullable(),
 });
+
+export const sendEmailOtpSchema = z.object({
+  email: z.string().trim().email('Please enter a valid email address').toLowerCase(),
+  purpose: z.enum(['register', 'login', 'admin']).optional().default('login'),
+});
+
+export const resendEmailOtpSchema = z.object({
+  email: z.string().trim().email('Please enter a valid email address').toLowerCase(),
+  purpose: z.enum(['register', 'login', 'admin']).optional().default('login'),
+});
+
+export const verifyEmailOtpSchema = z.object({
+  email: z.string().trim().email('Please enter a valid email address').toLowerCase(),
+  otp: z.string().trim().regex(/^\d{6}$/, 'OTP must be a 6-digit number'),
+  name: z.string().trim().min(2).max(100).optional(),
+  studentId: z.string().trim().min(2).max(50).optional(),
+  password: passwordSchema.optional(),
+  purpose: z.enum(['register', 'login', 'admin']).optional().default('login'),
+});
+

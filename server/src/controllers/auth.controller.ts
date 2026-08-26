@@ -158,11 +158,19 @@ export const sendEmailOtp = asyncHandler(async (req: Request, res: Response) => 
 });
 
 export const verifyEmailOtp = asyncHandler(async (req: Request, res: Response) => {
-  const { email, otp, name, password } = req.body as { email: string; otp: string; name?: string; password?: string };
+  const body = req.validatedBody || req.body;
+  const { email, otp, name, studentId, password, purpose } = body as {
+    email: string;
+    otp: string;
+    name?: string;
+    studentId?: string;
+    password?: string;
+    purpose?: 'register' | 'login' | 'admin';
+  };
   if (!email || !otp) {
     throw new AppError(400, 'MISSING_FIELDS', 'Email address and verification code are required');
   }
-  const { user, accessToken, refreshToken } = await verifyEmailAuthOtp(email, otp, { name, password });
+  const { user, accessToken, refreshToken } = await verifyEmailAuthOtp(email, otp, { name, studentId, password, purpose });
   setAuthCookies(res, accessToken, refreshToken);
   sendSuccess(res, { success: true, verified: true, user, accessToken, message: 'Email verified successfully' });
 });
