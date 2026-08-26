@@ -3,12 +3,13 @@ import { ROLE, Role } from '../constants';
 
 export interface IUser {
   _id: Types.ObjectId;
-  studentId: string;
+  studentId?: string;
   name: string;
-  email: string;
-  emailNormalized: string;
+  email?: string;
+  emailNormalized?: string;
+  mobileNumber?: string;
   phone?: string;
-  passwordHash: string;
+  passwordHash?: string;
   role: Role;
   isActive: boolean;
   approved: boolean;
@@ -20,13 +21,14 @@ export interface IUser {
 
 const userSchema = new Schema<IUser>(
   {
-    studentId: { type: String, required: true, trim: true, unique: true, index: true },
+    studentId: { type: String, trim: true, sparse: true, index: true },
     name: { type: String, required: true, trim: true, minlength: 2, maxlength: 100 },
-    email: { type: String, required: true, trim: true, lowercase: true, unique: true, index: true },
-    emailNormalized: { type: String, required: true, trim: true, lowercase: true, unique: true, index: true },
+    email: { type: String, trim: true, lowercase: true, sparse: true, index: true },
+    emailNormalized: { type: String, trim: true, lowercase: true, sparse: true, index: true },
+    mobileNumber: { type: String, trim: true, sparse: true, unique: true, index: true },
     phone: { type: String, trim: true, maxlength: 20 },
     avatarUrl: { type: String },
-    passwordHash: { type: String, required: true, select: false },
+    passwordHash: { type: String, select: false },
     role: { type: String, enum: Object.values(ROLE), default: ROLE.STUDENT, index: true },
     isActive: { type: Boolean, default: true, index: true },
     approved: { type: Boolean, default: true },

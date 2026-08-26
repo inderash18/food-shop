@@ -57,7 +57,7 @@ export async function handleAdminLogin(req: Request, res: Response) {
     throw new ForbiddenError('Your administrator account has been deactivated.');
   }
 
-  const ok = await verifyPassword(body.password, user.passwordHash);
+  const ok = await verifyPassword(body.password, user.passwordHash || '');
   if (!ok) {
     await recordAudit({ actorEmail: normalized, action: 'LOGIN_FAILED', metadata: { identifier: normalized } });
     throw new UnauthorizedError('Invalid credentials');

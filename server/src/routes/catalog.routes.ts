@@ -11,6 +11,7 @@ import {
   postCreateProduct,
   patchUpdateProduct,
   deleteProduct,
+  patchProductAvailability,
   postStockChange,
   getInventory,
   getTransactions,
@@ -46,6 +47,7 @@ adminCatalogRoutes.use(requireAuth(), loadUser(), requireRole(ROLE.ADMIN, ROLE.S
 adminCatalogRoutes.get('/products', getAdminProducts);
 adminCatalogRoutes.post('/products', validate(productCreateSchema), postCreateProduct);
 adminCatalogRoutes.patch('/products/:id', validate(productUpdateSchema), patchUpdateProduct);
+adminCatalogRoutes.patch('/products/:id/availability', patchProductAvailability);
 adminCatalogRoutes.delete('/products/:id', deleteProduct);
 
 adminCatalogRoutes.post('/categories', validate(categoryCreateSchema), postCreateCategory);

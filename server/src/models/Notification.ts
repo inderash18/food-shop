@@ -7,6 +7,9 @@ export interface INotification {
   body: string;
   type: string;
   read: boolean;
+  channel?: 'SMS' | 'EMAIL' | 'IN_APP';
+  status?: 'PENDING' | 'SENT' | 'FAILED';
+  errorDetails?: string;
   data?: Record<string, unknown>;
   createdAt: Date;
 }
@@ -18,6 +21,9 @@ const notificationSchema = new Schema<INotification>(
     body: { type: String, required: true, maxlength: 500 },
     type: { type: String, default: 'general' },
     read: { type: Boolean, default: false, index: true },
+    channel: { type: String, enum: ['SMS', 'EMAIL', 'IN_APP'], default: 'IN_APP' },
+    status: { type: String, enum: ['PENDING', 'SENT', 'FAILED'], default: 'SENT' },
+    errorDetails: { type: String },
     data: { type: Schema.Types.Mixed },
   },
   { timestamps: true }

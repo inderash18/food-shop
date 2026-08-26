@@ -6,16 +6,11 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AdminProtectedRoute } from './components/auth/AdminProtectedRoute';
 import { useAuthStore } from './stores/auth';
 
+import { AppLoader } from './components/ui/AppLoader';
+
 // Minimal Fast Loading Spinner
 function PageFallback() {
-  return (
-    <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 animate-in fade-in duration-150">
-      <div className="w-9 h-9 rounded-2xl bg-teal-50 text-[#389C9A] flex items-center justify-center shadow-3xs">
-        <div className="w-4 h-4 border-2 border-[#389C9A] border-t-transparent rounded-full animate-spin"></div>
-      </div>
-      <p className="text-[11px] font-bold text-gray-400 mt-2.5 tracking-wide">Loading foodislice...</p>
-    </div>
-  );
+  return <AppLoader message="Loading Food Shop..." />;
 }
 
 // Public & Landing Pages

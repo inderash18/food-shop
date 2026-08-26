@@ -22,8 +22,11 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
       totalRevenueResult,
       todayRevenueResult,
       pendingOrders,
+      preparingOrders,
+      readyOrders,
       completedOrders,
       cancelledOrders,
+      failedPayments,
       outOfStockProducts,
     ] = await Promise.all([
       User.countDocuments({ role: ROLE.STUDENT }),
@@ -37,9 +40,12 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
         { $match: { status: ORDER_STATUS.COMPLETED, createdAt: { $gte: todayStart, $lte: todayEnd } } },
         { $group: { _id: null, total: { $sum: '$total' } } }
       ]),
-      Order.countDocuments({ status: { $in: [ORDER_STATUS.PAYMENT_PENDING, ORDER_STATUS.PAYMENT_PROCESSING, ORDER_STATUS.ORDER_CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.READY] } }),
+      Order.countDocuments({ status: { $in: [ORDER_STATUS.PAYMENT_PENDING, ORDER_STATUS.PAYMENT_PROCESSING, ORDER_STATUS.ORDER_CONFIRMED] } }),
+      Order.countDocuments({ status: ORDER_STATUS.PREPARING }),
+      Order.countDocuments({ status: ORDER_STATUS.READY }),
       Order.countDocuments({ status: ORDER_STATUS.COMPLETED }),
       Order.countDocuments({ status: ORDER_STATUS.CANCELLED }),
+      Order.countDocuments({ $or: [{ status: ORDER_STATUS.PAYMENT_FAILED }, { paymentStatus: PAYMENT_STATUS.FAILED }] }),
       Product.countDocuments({ stock: { $lte: 0 } })
     ]);
 
@@ -53,8 +59,11 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
       totalRevenue,
       todayRevenue,
       pendingOrders,
+      preparingOrders,
+      readyOrders,
       completedOrders,
       cancelledOrders,
+      failedPayments,
       outOfStockProducts,
     };
 

@@ -11,6 +11,8 @@ import {
   updateUserProfile,
   changeUserPassword,
   issueTokenPair,
+  requestAuthOtp,
+  verifyAuthOtp,
 } from '../services/auth.service';
 import { env } from '../config/env';
 import { AppError } from '../utils/errors';
@@ -108,4 +110,28 @@ export const createAdmin = asyncHandler(async (req: Request, res: Response) => {
     ip: req.ip,
   });
   sendSuccess(res, { user: publicUser(user as never) }, 201);
+});
+
+export const sendOtp = asyncHandler(async (req: Request, res: Response) => {
+  const { mobileNumber, purpose } = req.body as { mobileNumber: string; purpose?: 'register' | 'login' };
+  if (!mobileNumber) {
+    throw new AppError(400, 'INVALID_PHONE', 'Mobile number is required');
+  }
+  const result = await requestAuthOtp(mobileNumber, purpose || 'login');
+  sendSuccess(res, {
+    message: 'OTP sent successfully via SMS',
+    mobileNumber: result.mobileNumber,
+    cooldownSeconds: result.cooldownSeconds,
+    expiresInSeconds: result.expiresInSeconds,
+  });
+});
+
+export const verifyOtp = asyncHandler(async (req: Request, res: Response) => {
+  const { mobileNumber, otp, name } = req.body as { mobileNumber: string; otp: string; name?: string };
+  if (!mobileNumber || !otp) {
+    throw new AppError(400, 'MISSING_FIELDS', 'Mobile number and OTP are required');
+  }
+  const { user, accessToken, refreshToken } = await verifyAuthOtp(mobileNumber, otp, name);
+  setAuthCookies(res, accessToken, refreshToken);
+  sendSuccess(res, { user, accessToken, message: 'Authenticated successfully' });
 });

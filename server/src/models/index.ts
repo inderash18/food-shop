@@ -1,5 +1,7 @@
 export { User } from './User';
 export type { IUser } from './User';
+export { OtpToken } from './OtpToken';
+export type { IOtpToken } from './OtpToken';
 export { RefreshToken } from './RefreshToken';
 export { Category } from './Category';
 export type { ICategory } from './Category';

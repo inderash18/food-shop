@@ -148,6 +148,13 @@ export const deleteProduct = asyncHandler(async (req: Request, res: Response) =>
   sendSuccess(res, { product, message: 'Product deactivated' });
 });
 
+export const patchProductAvailability = asyncHandler(async (req: Request, res: Response) => {
+  const { isActive, available } = req.body as { isActive?: boolean; available?: boolean };
+  const targetActive = isActive !== undefined ? isActive : (available !== undefined ? available : true);
+  const product = await updateProduct(req.params.id, { isActive: targetActive }, req.userId!, req.user?.email);
+  sendSuccess(res, { product, message: `Product availability updated to ${targetActive}` });
+});
+
 export const postStockChange = asyncHandler(async (req: Request, res: Response) => {
   const body = req.validatedBody as { type: 'add' | 'remove' | 'set' | 'waste'; quantity: number; reason: string };
   const result = await changeStock({

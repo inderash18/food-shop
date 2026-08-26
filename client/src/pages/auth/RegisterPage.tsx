@@ -1,248 +1,228 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import {
-  User,
-  Mail,
-  Lock,
-  Phone,
-  Eye,
-  EyeOff,
-  ArrowRight,
-  Loader2,
-  CheckCircle2,
-  ShieldCheck,
-  Building,
-} from 'lucide-react';
+import { Phone, User, KeyRound, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { getErrorMessage } from '../../api/client';
 import { toast } from '../../components/ui/Toast';
-import { cn } from '../../lib/utils';
 import { BrandLogo } from '../../components/ui/BrandLogo';
-
-interface RegisterForm {
-  name: string;
-  email: string;
-  studentId: string;
-  phone?: string;
-  password: string;
-  confirmPassword: string;
-}
 
 export function RegisterPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const registerUser = useAuthStore((s) => s.register);
+  const sendOtp = useAuthStore((s) => s.sendOtp);
+  const verifyOtp = useAuthStore((s) => s.verifyOtp);
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [serverError, setServerError] = useState('');
+  const [name, setName] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState<'MOBILE' | 'OTP'>('MOBILE');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [cooldown, setCooldown] = useState(0);
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<RegisterForm>();
-
-  const passwordValue = watch('password', '');
-
-  // Redirect if already logged in
+  // If already logged in, redirect home
   useEffect(() => {
     if (user) {
       navigate(user.role === 'STUDENT' ? '/' : '/admin', { replace: true });
     }
   }, [user, navigate]);
 
-  const onSubmit = async (values: RegisterForm) => {
-    setServerError('');
+  // Cooldown timer
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown]);
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    const cleaned = mobileNumber.trim().replace(/\D/g, '');
+    if (cleaned.length < 10) {
+      setError('Please enter a valid 10-digit mobile number');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const newUser = await registerUser({
-        name: values.name.trim(),
-        email: values.email.trim(),
-        studentId: values.studentId.trim().toUpperCase(),
-        phone: values.phone?.trim(),
-        password: values.password,
-      });
-      toast.success(`Account created! Welcome, ${newUser.name.split(' ')[0]}.`);
-      navigate('/login', { replace: true });
+      const res = await sendOtp(cleaned, 'register');
+      toast.success('OTP sent successfully to your mobile number!');
+      setStep('OTP');
+      setCooldown(res.cooldownSeconds || 60);
     } catch (err: any) {
-      setServerError(getErrorMessage(err));
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Password strength calculation
-  const hasMinLength = passwordValue.length >= 8;
-  const hasNumberOrSpecial = /[0-9!@#$%^&*]/.test(passwordValue);
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (otp.trim().length !== 6) {
+      setError('Please enter the 6-digit OTP code sent to your phone');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const newUser = await verifyOtp(mobileNumber, otp.trim(), name);
+      toast.success(`Account created! Welcome, ${newUser.name}!`);
+      navigate(newUser.role === 'STUDENT' ? '/' : '/admin', { replace: true });
+    } catch (err: any) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f8faf9] flex flex-col justify-center items-center px-4 py-12 selection:bg-teal-100 selection:text-teal-900 antialiased">
       <div className="w-full max-w-sm space-y-6">
-        
         {/* Brand Header */}
         <div className="text-center space-y-2">
           <Link to="/" className="inline-flex items-center justify-center mb-1">
             <BrandLogo size="lg" />
           </Link>
-          <h1 className="text-2xl font-bold text-darkText tracking-tight">Create Account</h1>
-          <p className="text-xs font-normal text-gray-500">Sign up in seconds for express food pre-orders.</p>
+          <h1 className="text-2xl font-bold text-darkText tracking-tight">Simple Registration</h1>
+          <p className="text-xs text-gray-500">Create an account with just your mobile number and OTP.</p>
         </div>
 
-        {/* Register Form Card */}
+        {/* Auth Card */}
         <div className="bg-white rounded-3xl border border-gray-100 shadow-2xs p-6 sm:p-7 space-y-4">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 text-xs">
-            
-            {/* Full Name */}
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">Full Name</label>
-              <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="e.g. Alex Kumar"
-                  className="w-full pl-9 pr-3.5 py-3 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-normal text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
-                  {...register('name', { required: 'Name is required', minLength: { value: 2, message: 'Name too short' } })}
-                />
-              </div>
-              {errors.name && <p className="text-[11px] text-rose-600 font-semibold mt-1">{errors.name.message}</p>}
+          {error && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[11px] text-rose-700 font-semibold animate-in">
+              {error}
             </div>
+          )}
 
-            {/* Campus Email */}
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">Campus Email</label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="email"
-                  placeholder="alex@college.edu"
-                  className="w-full pl-9 pr-3.5 py-3 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-normal text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
-                  {...register('email', {
-                    required: 'Email is required',
-                    pattern: { value: /^\S+@\S+\.\S+$/, message: 'Enter a valid email' },
-                  })}
-                />
+          {step === 'MOBILE' ? (
+            <form onSubmit={handleSendOtp} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1.5">Mobile Number</label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-gray-500 font-semibold border-r pr-2 border-gray-200">
+                    <Phone className="w-3.5 h-3.5 text-gray-400" />
+                    <span>+91</span>
+                  </div>
+                  <input
+                    type="tel"
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="9876543210"
+                    maxLength={10}
+                    required
+                    autoFocus
+                    className="w-full pl-16 pr-3.5 py-3 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-semibold tracking-wider text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
+                  />
+                </div>
               </div>
-              {errors.email && <p className="text-[11px] text-rose-600 font-semibold mt-1">{errors.email.message}</p>}
-            </div>
 
-            {/* Student ID */}
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">Student Roll / ID Number</label>
-              <div className="relative">
-                <Building className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="e.g. STU202684"
-                  className="w-full pl-9 pr-3.5 py-3 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-mono font-medium uppercase text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
-                  {...register('studentId', { required: 'Student ID is required' })}
-                />
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1.5">Your Name (Optional)</label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Alex Kumar"
+                    className="w-full pl-10 pr-3.5 py-3 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-normal text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
+                  />
+                </div>
               </div>
-              {errors.studentId && <p className="text-[11px] text-rose-600 font-semibold mt-1">{errors.studentId.message}</p>}
-            </div>
 
-            {/* Phone (Optional) */}
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">Contact Phone (For order pickup SMS)</label>
-              <div className="relative">
-                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="tel"
-                  placeholder="+91 98765 43210"
-                  className="w-full pl-9 pr-3.5 py-3 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-normal text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
-                  {...register('phone')}
-                />
+              <button
+                type="submit"
+                disabled={loading || mobileNumber.trim().length < 10}
+                className="w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-stone-950 font-bold text-xs sm:text-sm rounded-xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50 border border-amber-300"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Sending OTP...
+                  </>
+                ) : (
+                  <>
+                    Send Registration OTP <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp} className="space-y-4 text-xs">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block font-semibold text-gray-700">Enter 6-Digit OTP</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep('MOBILE');
+                      setOtp('');
+                    }}
+                    className="text-[11px] text-[#389C9A] hover:underline font-semibold"
+                  >
+                    Change Number
+                  </button>
+                </div>
+                <div className="relative">
+                  <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="123456"
+                    maxLength={6}
+                    required
+                    autoFocus
+                    className="w-full pl-10 pr-3.5 py-3 bg-secondaryBg border border-gray-200 rounded-xl text-sm font-bold tracking-widest text-center text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">OTP sent to +91 {mobileNumber}</p>
               </div>
-            </div>
 
-            {/* Password */}
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Min. 8 characters"
-                  className="w-full pl-9 pr-10 py-3 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-normal text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
-                  {...register('password', {
-                    required: 'Password is required',
-                    minLength: { value: 8, message: 'At least 8 characters required' },
-                  })}
-                />
+              <button
+                type="submit"
+                disabled={loading || otp.trim().length !== 6}
+                className="w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-stone-950 font-bold text-xs sm:text-sm rounded-xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50 border border-amber-300"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Verifying...
+                  </>
+                ) : (
+                  <>
+                    Verify & Complete Registration <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+
+              <div className="pt-2 text-center">
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                  disabled={cooldown > 0 || loading}
+                  onClick={handleSendOtp}
+                  className="text-xs text-[#389C9A] hover:underline font-semibold disabled:opacity-50 inline-flex items-center gap-1"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <RefreshCw className="w-3 h-3" />
+                  {cooldown > 0 ? `Resend OTP in ${cooldown}s` : 'Resend OTP'}
                 </button>
               </div>
-              {errors.password && <p className="text-[11px] text-rose-600 font-semibold mt-1">{errors.password.message}</p>}
+            </form>
+          )}
 
-              {/* Password strength indicators */}
-              {passwordValue && (
-                <div className="flex gap-2 pt-1 text-[10px] font-semibold">
-                  <span className={cn('flex items-center gap-1', hasMinLength ? 'text-[#389C9A]' : 'text-gray-400 font-normal')}>
-                    <CheckCircle2 className="w-3 h-3" /> 8+ chars
-                  </span>
-                  <span className={cn('flex items-center gap-1', hasNumberOrSpecial ? 'text-[#389C9A]' : 'text-gray-400 font-normal')}>
-                    <CheckCircle2 className="w-3 h-3" /> Numbers/Symbols
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">Confirm Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="password"
-                  placeholder="Repeat your password"
-                  className="w-full pl-9 pr-3.5 py-3 bg-secondaryBg border border-gray-200 rounded-xl text-xs font-normal text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
-                  {...register('confirmPassword', {
-                    required: 'Please confirm your password',
-                    validate: (v) => v === watch('password') || 'Passwords do not match',
-                  })}
-                />
-              </div>
-              {errors.confirmPassword && (
-                <p className="text-[11px] text-rose-600 font-semibold mt-1">{errors.confirmPassword.message}</p>
-              )}
-            </div>
-
-            {/* Server Error Notice */}
-            {serverError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[11px] text-rose-700 font-semibold animate-in">
-                {serverError}
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-stone-950 font-bold text-xs sm:text-sm rounded-xl shadow-3xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50 border border-amber-300"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Creating Account...
-                </>
-              ) : (
-                <>
-                  Create Account <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
+          {/* Switch to Login */}
+          <div className="pt-2 text-center border-t border-stone-100">
+            <p className="text-xs text-stone-500 font-normal">
+              Already registered?{' '}
+              <Link to="/login" className="font-bold text-amber-700 hover:underline">
+                Sign in
+              </Link>
+            </p>
+          </div>
         </div>
-
-        {/* Sign In Footer Link */}
-        <p className="text-center text-xs text-stone-500 font-normal">
-          Already have an account?{' '}
-          <Link to="/login" className="text-amber-700 dark:text-amber-400 font-bold hover:underline">
-            Sign in
-          </Link>
-        </p>
       </div>
     </div>
   );

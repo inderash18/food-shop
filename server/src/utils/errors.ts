@@ -15,7 +15,14 @@ export type ErrorCode =
   | 'PAYMENT_PROVIDER_NOT_CONFIGURED'
   | 'RATE_LIMITED'
   | 'INTERNAL_ERROR'
-  | 'BAD_REQUEST';
+  | 'BAD_REQUEST'
+  | 'INVALID_PHONE'
+  | 'MISSING_FIELDS'
+  | 'TOO_MANY_REQUESTS'
+  | 'INVALID_OTP_FORMAT'
+  | 'OTP_EXPIRED'
+  | 'MAX_ATTEMPTS_EXCEEDED'
+  | 'INVALID_OTP';
 
 export class AppError extends Error {
   public readonly statusCode: number;

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, refresh, logout, me, createAdmin, updateProfile, changePassword } from '../controllers/auth.controller';
+import { register, login, refresh, logout, me, createAdmin, updateProfile, changePassword, sendOtp, verifyOtp } from '../controllers/auth.controller';
 import { validate } from '../middlewares/validate';
 import { registerSchema, loginSchema, createAdminSchema, updateProfileSchema, changePasswordSchema } from '../validators/auth.schema';
 import { requireAuth } from '../middlewares/auth';
@@ -10,6 +10,17 @@ import { rateLimit } from '../middlewares/rateLimit';
 import { env } from '../config/env';
 
 const router = Router();
+
+router.post(
+  '/send-otp',
+  rateLimit({ windowMs: 5 * 60 * 1000, max: 10, keyPrefix: 'send_otp' }),
+  sendOtp
+);
+router.post(
+  '/verify-otp',
+  rateLimit({ windowMs: 5 * 60 * 1000, max: 15, keyPrefix: 'verify_otp' }),
+  verifyOtp
+);
 
 router.post(
   '/register',

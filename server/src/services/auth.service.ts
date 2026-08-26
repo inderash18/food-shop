@@ -8,12 +8,63 @@ import { ROLE, Role, AUDIT_ACTION } from '../constants';
 import { recordAudit } from './audit.service';
 import { logger } from '../config/logger';
 
+import { requestOtp, verifyOtpCode } from './otp.service';
+import { normalizeIndianMobile } from '../utils/phone';
+
 interface RegisterInput {
   name: string;
-  email: string;
-  studentId: string;
-  password: string;
+  email?: string;
+  studentId?: string;
+  password?: string;
   phone?: string;
+  mobileNumber?: string;
+}
+
+export async function requestAuthOtp(rawPhone: string, purpose: 'register' | 'login' = 'login') {
+  return requestOtp(rawPhone, purpose);
+}
+
+export async function verifyAuthOtp(rawPhone: string, otp: string, name?: string) {
+  const normalizedPhone = normalizeIndianMobile(rawPhone);
+  if (!normalizedPhone) {
+    throw new AppError(400, 'INVALID_PHONE', 'Please enter a valid 10-digit Indian mobile number');
+  }
+
+  await verifyOtpCode(normalizedPhone, otp);
+
+  // Find or create customer user
+  let user = await User.findOne({
+    $or: [{ mobileNumber: normalizedPhone }, { phone: normalizedPhone }],
+  });
+
+  if (!user) {
+    // Create new customer account
+    const lastDigits = normalizedPhone.slice(-4);
+    const defaultName = name?.trim() || `Customer ${lastDigits}`;
+    user = await User.create({
+      name: defaultName,
+      mobileNumber: normalizedPhone,
+      phone: normalizedPhone,
+      role: ROLE.STUDENT,
+      isActive: true,
+      approved: true,
+    });
+    await recordAudit({ actorId: user.id, action: 'REGISTER', resource: 'user', resourceId: user.id, metadata: { method: 'OTP' } });
+  } else {
+    if (!user.isActive) {
+      throw new ForbiddenError('Your account has been deactivated. Contact support.');
+    }
+    // Update user profile name if given
+    if (name && name.trim().length >= 2 && user.name.startsWith('Customer ')) {
+      user.name = name.trim();
+      await user.save();
+    }
+    await user.updateOne({ $set: { lastLoginAt: new Date() } });
+    await recordAudit({ actorId: user.id, action: 'LOGIN', resource: 'user', resourceId: user.id, metadata: { method: 'OTP' } });
+  }
+
+  const { accessToken, refreshToken } = await issueTokenPair(user.id, user.role);
+  return { user: publicUser(user), accessToken, refreshToken };
 }
 
 export function assertDomainAllowed(email: string): void {
@@ -26,10 +77,13 @@ export function assertDomainAllowed(email: string): void {
 }
 
 export async function registerUser(input: RegisterInput) {
-  assertDomainAllowed(input.email);
+  const email = input.email ? input.email.trim() : `${Date.now()}@user.local`;
+  const studentId = input.studentId ? input.studentId.trim().toUpperCase() : `STU${Date.now().toString().slice(-6)}`;
+  const password = input.password || 'Customer@123';
+  
+  assertDomainAllowed(email);
 
-  const emailNormalized = input.email.trim().toLowerCase();
-  const studentId = input.studentId.trim().toUpperCase();
+  const emailNormalized = email.toLowerCase();
   const existing = await User.findOne({
     $or: [{ email: emailNormalized }, { studentId }, { emailNormalized }],
   });
@@ -37,13 +91,14 @@ export async function registerUser(input: RegisterInput) {
     throw new ConflictError('An account with this email or student ID already exists');
   }
 
-  const passwordHash = await hashPassword(input.password);
+  const passwordHash = await hashPassword(password);
   const user = await User.create({
     name: input.name.trim(),
-    email: input.email.trim(),
+    email: email,
     emailNormalized,
     studentId,
     phone: input.phone?.trim() || undefined,
+    mobileNumber: input.mobileNumber?.trim() || undefined,
     passwordHash,
     role: ROLE.STUDENT,
   });
@@ -66,7 +121,7 @@ export async function loginUser(identifier: string, password: string) {
 
   if (!user) return invalid();
   if (!user.isActive) throw new ForbiddenError('Your account has been deactivated. Contact the administrator.');
-  const ok = await verifyPassword(password, user.passwordHash);
+  const ok = await verifyPassword(password, user.passwordHash || '');
   if (!ok) return invalid();
 
   await user.updateOne({ $set: { lastLoginAt: new Date() } });
@@ -125,17 +180,23 @@ export async function createAdminAccount(input: RegisterInput & { role?: Role; a
   const role: Role = input.role && Object.values(ROLE).includes(input.role) ? input.role : ROLE.STAFF;
   if (role === ROLE.STUDENT) throw new AppError(400, 'BAD_REQUEST', 'Cannot create student via admin creation');
 
+  const email = input.email ? input.email.trim().toLowerCase() : undefined;
+  const studentId = input.studentId ? input.studentId.trim().toUpperCase() : undefined;
+  if (!email || !studentId || !input.password) {
+    throw new AppError(400, 'BAD_REQUEST', 'Email, Student/Admin ID, and Password are required for admin creation');
+  }
+
   const existing = await User.findOne({
-    $or: [{ email: input.email.trim().toLowerCase() }, { studentId: input.studentId.trim().toUpperCase() }],
+    $or: [{ email }, { studentId }, { emailNormalized: email }],
   });
   if (existing) throw new ConflictError('A user with this email or ID already exists');
 
   const passwordHash = await hashPassword(input.password);
   const user = await User.create({
     name: input.name.trim(),
-    email: input.email.trim(),
-    emailNormalized: input.email.trim().toLowerCase(),
-    studentId: input.studentId.trim().toUpperCase(),
+    email: email,
+    emailNormalized: email,
+    studentId: studentId,
     passwordHash,
     role,
     approved: true,
@@ -146,9 +207,10 @@ export async function createAdminAccount(input: RegisterInput & { role?: Role; a
 
 export function publicUser(user: {
   _id: unknown;
-  studentId: string;
+  studentId?: string;
   name: string;
-  email: string;
+  email?: string;
+  mobileNumber?: string;
   phone?: string;
   avatarUrl?: string;
   role: Role;
@@ -158,10 +220,11 @@ export function publicUser(user: {
 }) {
   return {
     id: String(user._id),
-    studentId: user.studentId,
+    studentId: user.studentId || '',
     name: user.name,
-    email: user.email,
-    phone: user.phone ?? undefined,
+    email: user.email || '',
+    mobileNumber: user.mobileNumber || user.phone || '',
+    phone: user.phone || user.mobileNumber || '',
     avatarUrl: user.avatarUrl ?? undefined,
     role: user.role,
     isActive: user.isActive,
@@ -214,7 +277,7 @@ export async function changeUserPassword(userId: string, currentPass: string, ne
   const user = await User.findById(userId).select('+passwordHash');
   if (!user || !user.isActive) throw new UnauthorizedError('User not found or inactive');
 
-  const valid = await verifyPassword(currentPass, user.passwordHash);
+  const valid = await verifyPassword(currentPass, user.passwordHash || '');
   if (!valid) throw new UnauthorizedError('Current password does not match');
 
   user.passwordHash = await hashPassword(newPass);

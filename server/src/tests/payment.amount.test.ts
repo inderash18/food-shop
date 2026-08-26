@@ -3,7 +3,7 @@ import { toPaise, toRupees, isAmountEqual } from '../utils/money';
 import { handleAdminLogin, handleAdminMe, handleAdminLogout } from '../controllers/admin.auth.controller';
 import { ROLE } from '../constants';
 import * as authService from '../services/auth.service';
-import { Order, Payment } from '../models';
+import { Order, Payment, User } from '../models';
 import { paymentService } from '../services/payment.service';
 import { ForbiddenError } from '../utils/errors';
 
@@ -119,11 +119,23 @@ describe('Payment Amount Integrity & Separate Admin Portal Unit Tests', () => {
 
   describe('3. Dedicated Admin Portal Authentication Tests', () => {
     it('rejects student logins on adminLogin with ForbiddenError', async () => {
-      vi.spyOn(authService, 'loginUser').mockResolvedValue({
-        user: { _id: '507f1f77bcf86cd799439011', name: 'Student', email: 'stu@college.local', role: ROLE.STUDENT } as any,
+      const mockStudent = {
+        _id: '507f1f77bcf86cd799439011',
+        name: 'Student',
+        email: 'stu@college.local',
+        role: ROLE.STUDENT,
+        isActive: true,
+        passwordHash: '$2a$10$mockHash',
+      };
+      vi.spyOn(User, 'findOne').mockReturnValue({
+        select: vi.fn().mockResolvedValue(mockStudent),
+      } as any);
+      vi.spyOn(authService, 'issueTokenPair').mockResolvedValue({
         accessToken: 'mock_token',
         refreshToken: 'mock_refresh',
       });
+      const cryptoUtils = await import('../utils/crypto');
+      vi.spyOn(cryptoUtils, 'verifyPassword').mockResolvedValue(true);
 
       const req: any = {
         validatedBody: { identifier: 'stu@college.local', password: 'password' },
@@ -138,11 +150,24 @@ describe('Payment Amount Integrity & Separate Admin Portal Unit Tests', () => {
     });
 
     it('authenticates admin successfully and sets admin auth cookies', async () => {
-      vi.spyOn(authService, 'loginUser').mockResolvedValue({
-        user: { _id: '507f1f77bcf86cd799439011', name: 'Admin', email: 'admin@college.local', role: ROLE.ADMIN } as any,
+      const mockAdmin = {
+        _id: '507f1f77bcf86cd799439011',
+        name: 'Admin',
+        email: 'admin@college.local',
+        role: ROLE.ADMIN,
+        isActive: true,
+        passwordHash: '$2a$10$mockHash',
+        updateOne: vi.fn().mockResolvedValue({}),
+      };
+      vi.spyOn(User, 'findOne').mockReturnValue({
+        select: vi.fn().mockResolvedValue(mockAdmin),
+      } as any);
+      vi.spyOn(authService, 'issueTokenPair').mockResolvedValue({
         accessToken: 'admin_mock_token',
         refreshToken: 'admin_mock_refresh',
       });
+      const cryptoUtils = await import('../utils/crypto');
+      vi.spyOn(cryptoUtils, 'verifyPassword').mockResolvedValue(true);
 
       const req: any = {
         validatedBody: { identifier: 'admin@college.local', password: 'password' },
