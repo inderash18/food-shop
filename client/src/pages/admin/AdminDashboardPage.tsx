@@ -225,18 +225,44 @@ export function AdminDashboardPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {transactions.slice(0, 10).map((tx: any) => (
-                  <tr key={tx._id} className="hover:bg-gray-50/50">
-                    <td className="px-6 py-4 text-xs font-mono text-gray-600">{tx.transactionId}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">{tx.orderId?.orderNumber}</td>
-                    <td className="px-6 py-4 text-gray-600">{tx.orderId?.userId?.name || 'Unknown'}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">₹{tx.amount?.toLocaleString('en-IN')}</td>
+                  <tr key={tx._id || Math.random()} className="hover:bg-gray-50/50">
+                    <td className="px-6 py-4 text-xs font-mono text-gray-600">
+                      {tx.transactionId || tx.providerPaymentId || String(tx._id).slice(-8)}
+                    </td>
+                    <td className="px-6 py-4 font-medium text-gray-900">
+                      {tx.orderId?.orderNumber || (typeof tx.orderId === 'string' ? tx.orderId.slice(-8) : '—')}
+                    </td>
+                    <td className="px-6 py-4 text-gray-600">
+                      {tx.orderId?.userId?.name || tx.userId?.name || 'Customer'}
+                    </td>
+                    <td className="px-6 py-4 font-medium text-gray-900">
+                      ₹{(tx.amount ?? 0).toLocaleString('en-IN')}
+                    </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${tx.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-700' : tx.status === 'FAILED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>
-                        {tx.status}
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                          tx.status === 'SUCCESS'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : tx.status === 'FAILED'
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'bg-amber-50 text-amber-700'
+                        }`}
+                      >
+                        {tx.status || 'PENDING'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${tx.settlementStatus === 'SETTLED' ? 'bg-blue-50 text-blue-700' : tx.settlementStatus === 'PROCESSING' ? 'bg-purple-50 text-purple-700' : tx.settlementStatus === 'FAILED' ? 'bg-rose-50 text-rose-700' : 'bg-gray-100 text-gray-700'}`}>
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                          tx.settlementStatus === 'SETTLED'
+                            ? 'bg-blue-50 text-blue-700'
+                            : tx.settlementStatus === 'PROCESSING'
+                              ? 'bg-purple-50 text-purple-700'
+                              : tx.settlementStatus === 'FAILED'
+                                ? 'bg-rose-50 text-rose-700'
+                                : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
                         {tx.settlementStatus?.replace('_', ' ') || 'NOT SETTLED'}
                       </span>
                     </td>

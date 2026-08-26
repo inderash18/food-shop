@@ -1,4 +1,4 @@
-export type Role = 'STUDENT' | 'STAFF' | 'ADMIN' | 'SUPER_ADMIN';
+export type Role = 'STUDENT' | 'ADMIN' | 'SUPER_ADMIN';
 
 export type OrderStatus =
   | 'CART'

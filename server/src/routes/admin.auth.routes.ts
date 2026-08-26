@@ -23,7 +23,7 @@ router.get(
   '/me',
   requireAuth(),
   loadUser(),
-  requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN, ROLE.STAFF),
+  requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN),
   adminMe
 );
 

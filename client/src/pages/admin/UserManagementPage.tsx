@@ -91,7 +91,7 @@ export function UserManagementPage() {
               {totalUsers} {totalUsers === 1 ? 'Registered User' : 'Registered Users / Students'}
             </span>
           </div>
-          <p className="text-xs text-gray-500 mt-1">Real authenticated students and staff from MongoDB</p>
+          <p className="text-xs text-gray-500 mt-1">Real authenticated students and store administrator from MongoDB</p>
         </div>
         {currentUser?.role === 'SUPER_ADMIN' && (
           <button
@@ -102,7 +102,7 @@ export function UserManagementPage() {
             }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-colors w-fit"
           >
-            <UserPlus className="w-4 h-4" /> Add Admin / Staff
+            <UserPlus className="w-4 h-4" /> Add Admin
           </button>
         )}
       </div>
@@ -130,7 +130,7 @@ export function UserManagementPage() {
             [
               { id: 'ALL', label: 'All' },
               { id: 'STUDENT', label: 'Students' },
-              { id: 'ADMINS', label: 'Admins / Staff' },
+              { id: 'ADMINS', label: 'Admin' },
               { id: 'ACTIVE', label: 'Active' },
               { id: 'INACTIVE', label: 'Inactive' },
             ] as const
@@ -196,9 +196,7 @@ export function UserManagementPage() {
                             className="border border-gray-200 rounded-lg text-[11px] py-1 px-2 font-semibold bg-gray-50"
                           >
                             <option value="STUDENT">STUDENT</option>
-                            <option value="STAFF">STAFF</option>
                             <option value="ADMIN">ADMIN</option>
-                            <option value="SUPER_ADMIN">SUPER_ADMIN</option>
                           </select>
                         ) : (
                           <span

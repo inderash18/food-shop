@@ -18,7 +18,7 @@ import { getAuthCookieOptions, getClearCookieOptions } from '../utils/cookies';
 const ADMIN_REFRESH_COOKIE = 'adminRefreshToken';
 const ADMIN_ACCESS_COOKIE = 'adminAccessToken';
 
-const ADMIN_ALLOWED_ROLES = [ROLE.ADMIN, ROLE.SUPER_ADMIN, ROLE.STAFF];
+const ADMIN_ALLOWED_ROLES = [ROLE.ADMIN, ROLE.SUPER_ADMIN];
 
 function setAdminAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
   res.cookie(ADMIN_REFRESH_COOKIE, refreshToken, getAuthCookieOptions(7 * 24 * 60 * 60 * 1000));

@@ -60,13 +60,27 @@ export const getProductDetail = asyncHandler(async (req: Request, res: Response)
 export const getAdminProducts = asyncHandler(async (req: Request, res: Response) => {
   const { page = 1, limit = 50, search } = req.query as { page?: string; limit?: string; search?: string };
   const filter: Record<string, unknown> = {};
-  if (search) filter.name = { $regex: search, $options: 'i' };
+  if (search && typeof search === 'string' && search.trim()) {
+    filter.name = { $regex: search.trim(), $options: 'i' };
+  }
+  const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 25));
   const { Product } = await import('../models');
   const [products, total] = await Promise.all([
-    Product.find(filter).sort({ createdAt: -1 }).skip((Number(page) - 1) * Number(limit)).limit(Number(limit)).lean(),
+    Product.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .lean(),
     Product.countDocuments(filter),
   ]);
-  sendSuccess(res, { products, total, page: Number(page), limit: Number(limit), pages: Math.max(1, Math.ceil(total / Number(limit))) });
+  sendSuccess(res, {
+    products: products || [],
+    total,
+    page: pageNum,
+    limit: limitNum,
+    pages: Math.max(1, Math.ceil(total / limitNum)),
+  });
 });
 
 export const postCreateCategory = asyncHandler(async (req: Request, res: Response) => {

@@ -14,18 +14,27 @@ router.get('/', asyncHandler(async (req, res) => {
   const filter: Record<string, unknown> = {};
   if (action) filter.action = action;
   if (search?.trim()) {
-    filter.$or = [{ actorEmail: new RegExp(search.trim(), 'i') }, { resourceId: new RegExp(search.trim(), 'i') }];
+    const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    filter.$or = [{ actorEmail: new RegExp(escaped, 'i') }, { resourceId: new RegExp(escaped, 'i') }];
   }
+  const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 25));
   const [logs, total] = await Promise.all([
     AuditLog.find(filter)
       .sort({ createdAt: -1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit))
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
       .populate('actorId', 'name email')
       .lean(),
     AuditLog.countDocuments(filter),
   ]);
-  sendSuccess(res, { logs, total, page: Number(page), limit: Number(limit), pages: Math.max(1, Math.ceil(total / Number(limit))) });
+  sendSuccess(res, {
+    logs: logs || [],
+    total,
+    page: pageNum,
+    limit: limitNum,
+    pages: Math.max(1, Math.ceil(total / limitNum)),
+  });
 }));
 
 export default router;

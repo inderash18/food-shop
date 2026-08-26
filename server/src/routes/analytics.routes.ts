@@ -152,11 +152,25 @@ router.get('/peak-hours', asyncHandler(async (_req, res) => {
 router.get('/payments', asyncHandler(async (req, res) => {
   const { Payment } = await import('../models');
   const { page = 1, limit = 50 } = req.query as { page?: string; limit?: string };
+  const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 25));
   const [payments, total] = await Promise.all([
-    Payment.find({}).sort({ createdAt: -1 }).skip((Number(page) - 1) * Number(limit)).limit(Number(limit)).populate('orderId', 'orderNumber total').populate('userId', 'name email').lean(),
+    Payment.find({})
+      .sort({ createdAt: -1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .populate('orderId', 'orderNumber total')
+      .populate('userId', 'name email')
+      .lean(),
     Payment.countDocuments({}),
   ]);
-  sendSuccess(res, { payments, total, page: Number(page), limit: Number(limit), pages: Math.max(1, Math.ceil(total / Number(limit))) });
+  sendSuccess(res, {
+    payments: payments || [],
+    total,
+    page: pageNum,
+    limit: limitNum,
+    pages: Math.max(1, Math.ceil(total / limitNum)),
+  });
 }));
 
 export default router;

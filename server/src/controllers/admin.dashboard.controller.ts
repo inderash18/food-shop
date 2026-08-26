@@ -3,12 +3,13 @@ import { Order, User, Product, Payment, PaymentTransaction } from '../models';
 import { ORDER_STATUS, ROLE, INVENTORY_STATUS, PAYMENT_STATUS, SETTLEMENT_STATUS } from '../constants';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 import { cache } from '../services/cache.service';
+import { sendSuccess } from '../utils/response';
 
 export const getDashboardStats = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const cachedStats = cache.get<Record<string, unknown>>('admin_dashboard_stats');
     if (cachedStats) {
-      res.json(cachedStats);
+      sendSuccess(res, cachedStats);
       return;
     }
 
@@ -68,7 +69,7 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
     };
 
     cache.set('admin_dashboard_stats', payload, 10_000); // 10s TTL
-    res.json(payload);
+    sendSuccess(res, payload);
   } catch (error) {
     next(error);
   }
@@ -78,37 +79,42 @@ export const getRevenueChart = async (req: Request, res: Response, next: NextFun
   try {
     const cachedChart = cache.get<unknown[]>('admin_revenue_chart_7d');
     if (cachedChart) {
-      res.json(cachedChart);
+      sendSuccess(res, cachedChart);
       return;
     }
 
     const days = 7;
     const startDate = startOfDay(subDays(new Date(), days - 1));
 
-    const revenueData = await Order.aggregate([
-      {
-        $match: {
-          status: ORDER_STATUS.COMPLETED,
-          createdAt: { $gte: startDate }
+    let revenueData: any[] = [];
+    try {
+      revenueData = await Order.aggregate([
+        {
+          $match: {
+            status: ORDER_STATUS.COMPLETED,
+            createdAt: { $gte: startDate }
+          }
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            total: { $sum: "$total" }
+          }
+        },
+        {
+          $sort: { _id: 1 }
         }
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          total: { $sum: "$total" }
-        }
-      },
-      {
-        $sort: { _id: 1 }
-      }
-    ]);
+      ]);
+    } catch {
+      revenueData = [];
+    }
 
     // Fill in missing days
     const chart = [];
     for (let i = days - 1; i >= 0; i--) {
       const d = startOfDay(subDays(new Date(), i));
       const dateStr = d.toISOString().split('T')[0];
-      const match = revenueData.find((r: any) => r._id === dateStr);
+      const match = (revenueData || []).find((r: any) => r._id === dateStr);
       chart.push({
         date: dateStr,
         dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
@@ -117,7 +123,7 @@ export const getRevenueChart = async (req: Request, res: Response, next: NextFun
     }
 
     cache.set('admin_revenue_chart_7d', chart, 30_000); // 30s TTL
-    res.json(chart);
+    sendSuccess(res, chart);
   } catch (error) {
     next(error);
   }
@@ -125,11 +131,41 @@ export const getRevenueChart = async (req: Request, res: Response, next: NextFun
 
 export const getRecentTransactions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const transactions = await PaymentTransaction.find()
-      .populate({ path: 'orderId', select: 'orderNumber userId total items', populate: { path: 'userId', select: 'name email' } })
-      .sort({ createdAt: -1 })
-      .limit(50);
-    res.json(transactions);
+    let transactions: any[] = [];
+    try {
+      transactions = await PaymentTransaction.find()
+        .populate({ path: 'orderId', select: 'orderNumber userId total items', populate: { path: 'userId', select: 'name email' } })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .lean();
+    } catch {
+      transactions = [];
+    }
+
+    if (!transactions || transactions.length === 0) {
+      try {
+        const payments = await Payment.find()
+          .populate({ path: 'orderId', select: 'orderNumber userId total items', populate: { path: 'userId', select: 'name email' } })
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .lean();
+        transactions = payments.map((p: any) => ({
+          _id: p._id,
+          orderId: p.orderId,
+          amount: p.amount,
+          currency: p.currency,
+          status: p.status,
+          provider: p.provider,
+          providerPaymentId: p.providerPaymentId,
+          settlementStatus: p.settlementStatus || 'NOT_SETTLED',
+          createdAt: p.createdAt,
+        }));
+      } catch {
+        transactions = [];
+      }
+    }
+
+    sendSuccess(res, transactions || []);
   } catch (error) {
     next(error);
   }
@@ -140,24 +176,35 @@ export const getSettlements = async (req: Request, res: Response, next: NextFunc
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
 
-    const [statsResult, todayCollectedResult, transactions] = await Promise.all([
-      PaymentTransaction.aggregate([
-        {
-          $group: {
-            _id: '$settlementStatus',
-            totalAmount: { $sum: '$amount' }
+    let statsResult: any[] = [];
+    let todayCollectedResult: any[] = [];
+    let transactions: any[] = [];
+
+    try {
+      [statsResult, todayCollectedResult, transactions] = await Promise.all([
+        PaymentTransaction.aggregate([
+          {
+            $group: {
+              _id: '$settlementStatus',
+              totalAmount: { $sum: '$amount' }
+            }
           }
-        }
-      ]),
-      PaymentTransaction.aggregate([
-        { $match: { createdAt: { $gte: todayStart, $lte: todayEnd }, status: PAYMENT_STATUS.SUCCESS } },
-        { $group: { _id: null, total: { $sum: '$amount' } } }
-      ]),
-      PaymentTransaction.find()
-        .populate({ path: 'orderId', select: 'orderNumber' })
-        .sort({ createdAt: -1 })
-        .limit(100)
-    ]);
+        ]),
+        PaymentTransaction.aggregate([
+          { $match: { createdAt: { $gte: todayStart, $lte: todayEnd }, status: PAYMENT_STATUS.SUCCESS } },
+          { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]),
+        PaymentTransaction.find()
+          .populate({ path: 'orderId', select: 'orderNumber' })
+          .sort({ createdAt: -1 })
+          .limit(100)
+          .lean()
+      ]);
+    } catch {
+      statsResult = [];
+      todayCollectedResult = [];
+      transactions = [];
+    }
 
     const stats = {
       NOT_SETTLED: 0,
@@ -168,16 +215,16 @@ export const getSettlements = async (req: Request, res: Response, next: NextFunc
       TODAY_COLLECTED: todayCollectedResult[0]?.total || 0,
     };
 
-    statsResult.forEach((s: any) => {
-      if (stats[s._id as keyof typeof stats] !== undefined) {
-        stats[s._id as keyof typeof stats] = s.totalAmount;
+    (statsResult || []).forEach((s: any) => {
+      if (s?._id && stats[s._id as keyof typeof stats] !== undefined) {
+        stats[s._id as keyof typeof stats] = Number(s.totalAmount) || 0;
       }
-      stats.TOTAL += s.totalAmount;
+      stats.TOTAL += Number(s?.totalAmount) || 0;
     });
 
-    res.json({
+    sendSuccess(res, {
       stats,
-      transactions
+      transactions: transactions || []
     });
   } catch (error) {
     next(error);

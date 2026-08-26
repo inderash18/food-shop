@@ -27,8 +27,8 @@ const router = Router();
 // ---- Authenticated User ----
 router.use(requireAuth(), loadUser());
 
-// ---- Admin / Staff Counter & Kitchen Endpoints ----
-router.use('/admin', requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN, ROLE.STAFF));
+// ---- Admin Counter & Kitchen Endpoints ----
+router.use('/admin', requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN));
 router.get('/admin', getAdminOrders);
 router.get('/admin/counts', getOrderCounts);
 router.get('/admin/kitchen', getKitchenBoard);

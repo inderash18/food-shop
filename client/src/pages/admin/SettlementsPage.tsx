@@ -13,7 +13,7 @@ export function SettlementsPage() {
     return <div className="p-8 text-center text-gray-500">Loading settlements...</div>;
   }
 
-  const { stats, transactions } = data || { stats: {}, transactions: [] };
+  const { stats = {} as any, transactions = [] } = (data || {}) as { stats?: any; transactions?: any[] };
 
   return (
     <div className="space-y-6">
@@ -27,7 +27,7 @@ export function SettlementsPage() {
           <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><IndianRupee className="w-6 h-6" /></div>
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Collected</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-0.5">₹{stats.TOTAL?.toLocaleString('en-IN') || 0}</h3>
+            <h3 className="text-2xl font-bold text-gray-900 mt-0.5">₹{(stats?.TOTAL || 0).toLocaleString('en-IN')}</h3>
           </div>
         </div>
 
@@ -35,7 +35,7 @@ export function SettlementsPage() {
           <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><IndianRupee className="w-6 h-6" /></div>
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Today's Collected</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-0.5">₹{stats.TODAY_COLLECTED?.toLocaleString('en-IN') || 0}</h3>
+            <h3 className="text-2xl font-bold text-gray-900 mt-0.5">₹{(stats?.TODAY_COLLECTED || 0).toLocaleString('en-IN')}</h3>
           </div>
         </div>
 
@@ -43,7 +43,7 @@ export function SettlementsPage() {
           <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Clock className="w-6 h-6" /></div>
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending Settlement</p>
-            <h3 className="text-2xl font-bold text-amber-600 mt-0.5">₹{(stats.NOT_SETTLED + stats.PROCESSING)?.toLocaleString('en-IN') || 0}</h3>
+            <h3 className="text-2xl font-bold text-amber-600 mt-0.5">₹{((stats?.NOT_SETTLED || 0) + (stats?.PROCESSING || 0)).toLocaleString('en-IN')}</h3>
           </div>
         </div>
 
@@ -51,7 +51,7 @@ export function SettlementsPage() {
           <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle className="w-6 h-6" /></div>
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Settled Amount</p>
-            <h3 className="text-2xl font-bold text-emerald-600 mt-0.5">₹{stats.SETTLED?.toLocaleString('en-IN') || 0}</h3>
+            <h3 className="text-2xl font-bold text-emerald-600 mt-0.5">₹{(stats?.SETTLED || 0).toLocaleString('en-IN')}</h3>
           </div>
         </div>
 
@@ -59,7 +59,7 @@ export function SettlementsPage() {
           <div className="p-3 bg-rose-50 text-rose-600 rounded-xl"><XCircle className="w-6 h-6" /></div>
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Failed Settlement</p>
-            <h3 className="text-2xl font-bold text-rose-600 mt-0.5">₹{stats.FAILED?.toLocaleString('en-IN') || 0}</h3>
+            <h3 className="text-2xl font-bold text-rose-600 mt-0.5">₹{(stats?.FAILED || 0).toLocaleString('en-IN')}</h3>
           </div>
         </div>
       </div>
@@ -84,14 +84,16 @@ export function SettlementsPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {transactions.map((tx: any) => (
-                  <tr key={tx._id} className="hover:bg-gray-50/50">
-                    <td className="px-6 py-4 text-xs font-mono text-gray-600">{tx.transactionId}</td>
-                    <td className="px-6 py-4 text-xs font-mono text-gray-600">{tx.providerReference || '-'}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">{tx.orderId?.orderNumber}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">₹{tx.amount?.toLocaleString('en-IN')}</td>
+                  <tr key={tx._id || Math.random()} className="hover:bg-gray-50/50">
+                    <td className="px-6 py-4 text-xs font-mono text-gray-600">
+                      {tx.transactionId || tx.providerPaymentId || String(tx._id).slice(-8)}
+                    </td>
+                    <td className="px-6 py-4 text-xs font-mono text-gray-600">{tx.providerReference || tx.providerPaymentId || '-'}</td>
+                    <td className="px-6 py-4 font-medium text-gray-900">{tx.orderId?.orderNumber || (typeof tx.orderId === 'string' ? tx.orderId.slice(-8) : '—')}</td>
+                    <td className="px-6 py-4 font-medium text-gray-900">₹{(tx.amount ?? 0).toLocaleString('en-IN')}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${tx.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-700' : tx.status === 'FAILED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>
-                        {tx.status}
+                        {tx.status || 'PENDING'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
