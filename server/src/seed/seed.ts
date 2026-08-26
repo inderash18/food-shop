@@ -1,5 +1,21 @@
 import { connectDatabase, disconnectDatabase } from '../config/db';
-import { User, Category, Product, ShopSettings, Coupon, InventoryTransaction, Event } from '../models';
+import {
+  User,
+  Category,
+  Product,
+  ShopSettings,
+  Coupon,
+  InventoryTransaction,
+  Event,
+  Order,
+  Payment,
+  PaymentTransaction,
+  Cart,
+  Notification,
+  OtpToken,
+  AuditLog,
+  RefreshToken,
+} from '../models';
 import { ROLE, SHOP_STATUS } from '../constants';
 import { hashPassword } from '../utils/crypto';
 import { logger } from '../config/logger';
@@ -54,8 +70,17 @@ async function seed(): Promise<void> {
       ShopSettings.deleteMany({}),
       Coupon.deleteMany({}),
       InventoryTransaction.deleteMany({}),
+      Order.deleteMany({}),
+      Payment.deleteMany({}),
+      PaymentTransaction.deleteMany({}),
+      Cart.deleteMany({}),
+      Notification.deleteMany({}),
+      OtpToken.deleteMany({}),
+      AuditLog.deleteMany({}),
+      RefreshToken.deleteMany({}),
+      Event.deleteMany({}),
     ]);
-    logger.info('Database reset');
+    logger.info('Database completely wiped and reset');
   }
 
   const existingAdmin = await User.findOne({ email: 'admin@college.local' });
