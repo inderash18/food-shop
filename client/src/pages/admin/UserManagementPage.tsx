@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, UserPlus, Key, ChevronLeft, ChevronRight, Users, ShoppingBag, ShieldCheck, UserCheck } from 'lucide-react';
+import { Search, UserPlus, Key, ChevronLeft, ChevronRight, Users, ShoppingBag, ShieldCheck, UserCheck, Trash2 } from 'lucide-react';
 import { adminApi } from '../../api/admin';
 import type { User } from '../../lib/types';
 import { Modal } from '../../components/admin/Modal';
@@ -74,6 +74,22 @@ export function UserManagementPage() {
       setNewPassword('');
     },
   });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (id: string) => adminApi.deleteUser(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+    onError: (err: any) => {
+      alert(err?.response?.data?.message || 'Failed to delete user');
+    },
+  });
+
+  const handleDeleteUser = (userId: string, userName: string) => {
+    if (window.confirm(`Are you sure you want to permanently delete user "${userName}"? This will remove their account and related data.`)) {
+      deleteUserMutation.mutate(userId);
+    }
+  };
 
   const totalUsers = data?.total ?? 0;
   const totalPages = data?.pages || Math.max(1, Math.ceil(totalUsers / limit));
@@ -173,7 +189,9 @@ export function UserManagementPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {usersList.map((user) => {
-                  const userId = user._id || user.id || '';
+                  const userId = (user as any).id || (user as any)._id || '';
+                  const currentUserId = (currentUser as any)?.id || (currentUser as any)?._id || '';
+                  const isSelf = Boolean(currentUserId && userId && currentUserId === userId);
                   const mobile = user.mobile || user.mobileNumber || user.phone || '—';
                   const joinedDate = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—';
                   const orderCount = user.orderCount ?? 0;
@@ -189,11 +207,11 @@ export function UserManagementPage() {
                       </td>
                       <td className="px-4 py-3 font-mono text-gray-700 font-medium">{mobile}</td>
                       <td className="px-4 py-3">
-                        {currentUser?.role === 'SUPER_ADMIN' && user._id !== currentUser._id ? (
+                        {currentUser?.role === 'SUPER_ADMIN' && !isSelf ? (
                           <select
                             value={user.role}
                             onChange={(e) => setRoleMutation.mutate({ id: userId, role: e.target.value })}
-                            className="border border-gray-200 rounded-lg text-[11px] py-1 px-2 font-semibold bg-gray-50"
+                            className="border border-gray-200 rounded-lg text-[11px] py-1 px-2 font-semibold bg-gray-50 cursor-pointer hover:border-gray-300"
                           >
                             <option value="STUDENT">STUDENT</option>
                             <option value="ADMIN">ADMIN</option>
@@ -218,7 +236,7 @@ export function UserManagementPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {user._id === currentUser?._id ? (
+                        {isSelf ? (
                           <span className="text-emerald-600 font-bold text-[11px]">Active (You)</span>
                         ) : (
                           <button
@@ -235,7 +253,7 @@ export function UserManagementPage() {
                           </button>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right space-x-1">
+                      <td className="px-4 py-3 text-right space-x-1.5 whitespace-nowrap">
                         <button
                           onClick={() => setResetPassUserId(userId)}
                           className="p-1.5 hover:bg-gray-100 text-gray-600 rounded-lg transition-colors inline-flex items-center gap-1 border border-gray-200 text-[11px]"
@@ -243,6 +261,16 @@ export function UserManagementPage() {
                         >
                           <Key className="w-3.5 h-3.5" /> Reset Pass
                         </button>
+                        {!isSelf && (
+                          <button
+                            onClick={() => handleDeleteUser(userId, user.name || 'User')}
+                            className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition-colors inline-flex items-center gap-1 border border-rose-200 text-[11px]"
+                            title="Delete User"
+                            disabled={deleteUserMutation.isPending}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

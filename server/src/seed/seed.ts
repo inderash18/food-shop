@@ -24,10 +24,8 @@ const DEV_PASSWORD = 'College@123';
 
 const seedUsers = [
   { name: 'System Admin', email: 'admin@college.local', studentId: 'ADMIN001', role: ROLE.SUPER_ADMIN },
-  { name: 'Kitchen Staff', email: 'staff@college.local', studentId: 'STAFF001', role: ROLE.STAFF },
-  { name: 'Student One', email: 'student1@college.local', studentId: 'STU2025001', role: ROLE.STUDENT },
-  { name: 'Student Two', email: 'student2@college.local', studentId: 'STU2025002', role: ROLE.STUDENT },
 ];
+
 
 const seedCategories = [
   { name: 'Breakfast', slug: 'breakfast', sortOrder: 1 },

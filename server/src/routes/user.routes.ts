@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireAuth, requireRole } from '../middlewares/auth';
 import { loadUser } from '../middlewares/loadUser';
 import { validate } from '../middlewares/validate';
-import { User, Order } from '../models';
+import { User, Order, Cart, RefreshToken, Notification, OtpToken } from '../models';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/response';
 import { NotFoundError, ConflictError } from '../utils/errors';
@@ -214,11 +214,45 @@ const resetPassword = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Password reset successfully' });
 });
 
+const deleteUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) throw new NotFoundError('User not found');
+  if (String(user._id) === req.userId) {
+    throw new ConflictError('You cannot delete your own account');
+  }
+  if (user.role === ROLE.SUPER_ADMIN && req.user?.role !== ROLE.SUPER_ADMIN) {
+    const { ForbiddenError } = await import('../utils/errors');
+    throw new ForbiddenError('Only a Super Admin can delete another Super Admin');
+  }
+
+  // Clean up user's related data
+  await Promise.all([
+    Cart.deleteMany({ userId: user._id }),
+    RefreshToken.deleteMany({ userId: user._id }),
+    Notification.deleteMany({ userId: user._id }),
+    OtpToken.deleteMany({ email: user.email }),
+    User.deleteOne({ _id: user._id }),
+  ]);
+
+  await recordAudit({
+    actorId: req.userId,
+    actorEmail: req.user?.email,
+    action: AUDIT_ACTION.USER_DELETED,
+    resource: 'user',
+    resourceId: req.params.id,
+    metadata: { name: user.name, email: user.email, role: user.role },
+    ip: req.ip,
+  });
+
+  sendSuccess(res, { message: 'User deleted successfully' });
+});
+
 router.get('/', listUsers);
 router.get('/:id', getUserDetail);
 router.patch('/:id/active', validate(setActiveSchema), setActive);
 router.patch('/:id/role', validate(setRoleSchema), setRole);
 router.post('/staff', validate(createStaffSchema), createStaff);
 router.post('/:id/reset-password', validate(resetPasswordSchema), resetPassword);
+router.delete('/:id', deleteUser);
 
 export default router;

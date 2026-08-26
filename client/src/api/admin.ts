@@ -199,6 +199,7 @@ export const adminApi = {
   createStaff: (body: { name: string; email: string; studentId: string; role?: Role | string }) =>
     apiPost<{ user: User; temporaryPassword: string }>('/api/admin/users/staff', body),
   resetPassword: (id: string, newPassword: string) => apiPost<{ message: string }>(`/api/admin/users/${id}/reset-password`, { newPassword }),
+  deleteUser: (id: string) => apiDelete<{ message: string }>(`/api/admin/users/${id}`),
 
   payments: (params: { page?: number; limit?: number }) => {
     const q = new URLSearchParams();
