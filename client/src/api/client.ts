@@ -161,22 +161,38 @@ export function getErrorCode(err: unknown): string | undefined {
 
 export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
   const res = await client.get<T>(url, config);
-  return (res.data as { data: T }).data;
+  const body = res.data as any;
+  if (body && typeof body === 'object' && 'data' in body) {
+    return body.data as T;
+  }
+  return body as T;
 }
 
 export async function apiPost<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
   const res = await client.post<T>(url, body, config);
-  return (res.data as { data: T }).data;
+  const resBody = res.data as any;
+  if (resBody && typeof resBody === 'object' && 'data' in resBody) {
+    return resBody.data as T;
+  }
+  return resBody as T;
 }
 
 export async function apiPatch<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
   const res = await client.patch<T>(url, body, config);
-  return (res.data as { data: T }).data;
+  const resBody = res.data as any;
+  if (resBody && typeof resBody === 'object' && 'data' in resBody) {
+    return resBody.data as T;
+  }
+  return resBody as T;
 }
 
 export async function apiDelete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
   const res = await client.delete<T>(url, config);
-  return (res.data as { data: T }).data;
+  const resBody = res.data as any;
+  if (resBody && typeof resBody === 'object' && 'data' in resBody) {
+    return resBody.data as T;
+  }
+  return resBody as T;
 }
 
 export default client;
