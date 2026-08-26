@@ -140,14 +140,13 @@ export function StudentLayout({ children }: { children?: React.ReactNode }) {
             <BrandLogo size="md" />
           </Link>
 
-          {/* Primary SaaS Navigation Links */}
+          {/* Primary Simple Navigation Links */}
           <nav className="flex items-center gap-1">
             {[
-              { to: '/', label: 'Overview', icon: Home },
-              { to: '/menu', label: 'Food Menu', icon: Utensils },
-              { to: '/orders', label: 'My Orders', icon: Ticket },
-              { to: '/settings', label: 'Settings', icon: Settings },
-              { to: '/help', label: 'Help', icon: HelpCircle },
+              { to: '/', label: 'Home', icon: Home },
+              { to: '/menu', label: 'Menu', icon: Utensils },
+              { to: '/orders', label: 'Orders', icon: Ticket },
+              { to: '/profile', label: 'Profile', icon: User },
             ].map((nav) => (
               <NavLink
                 key={nav.to}
@@ -236,15 +235,7 @@ export function StudentLayout({ children }: { children?: React.ReactNode }) {
                         className="flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-stone-700 hover:bg-amber-50 transition-colors"
                       >
                         <Ticket className="h-4 w-4 text-amber-600" />
-                        <span>Pre-Orders & Passes</span>
-                      </Link>
-
-                      <Link
-                        to="/settings"
-                        className="flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-stone-700 hover:bg-amber-50 transition-colors"
-                      >
-                        <Settings className="h-4 w-4 text-amber-600" />
-                        <span>Account Settings</span>
+                        <span>My Orders</span>
                       </Link>
                     </div>
 
@@ -561,23 +552,22 @@ export function StudentLayout({ children }: { children?: React.ReactNode }) {
       {/* ========================================================================= */}
       {/* 7. DEDICATED MOBILE BOTTOM NAVIGATION BAR (1-Hand Optimized)             */}
       {/* ========================================================================= */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/98 backdrop-blur-lg border-t border-gray-100/90 z-40 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_25px_rgba(0,0,0,0.06)]">
-        <div className="flex items-center justify-around h-[58px] px-2">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/98 backdrop-blur-lg border-t border-amber-100 z-40 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_25px_rgba(0,0,0,0.06)]">
+        <div className="flex items-center justify-around h-[58px] px-4 max-w-md mx-auto">
           {[
-            { to: '/menu', label: 'Menu', icon: Utensils },
-            { to: '/search', label: 'Search', icon: Search },
-            { to: '/cart', label: 'My Order', icon: ShoppingBag, badge: itemCount || null },
+            { to: '/', label: 'Home', icon: Home, end: true },
             { to: '/orders', label: 'Orders', icon: Ticket },
             { to: '/profile', label: 'Profile', icon: User },
           ].map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.end}
               className={({ isActive }) =>
                 cn(
-                  'flex flex-col items-center justify-center flex-1 h-full gap-0.5 transition-all duration-150 relative select-none',
+                  'flex flex-col items-center justify-center flex-1 h-full gap-1 transition-all duration-150 relative select-none',
                   isActive
-                    ? 'text-amber-700 font-bold'
+                    ? 'text-amber-900 font-bold'
                     : 'text-stone-400 hover:text-amber-900 font-medium'
                 )
               }
@@ -588,26 +578,21 @@ export function StudentLayout({ children }: { children?: React.ReactNode }) {
                     <item.icon
                       className={cn(
                         'h-5 w-5 transition-transform duration-200',
-                        isActive ? 'text-amber-600 scale-105' : 'text-stone-400'
+                        isActive ? 'text-amber-600 scale-110' : 'text-stone-400'
                       )}
-                      strokeWidth={isActive ? 2.4 : 1.7}
+                      strokeWidth={isActive ? 2.5 : 1.8}
                     />
-                    {item.badge ? (
-                      <span className="absolute -top-1.5 -right-2 bg-[#F59E0B] text-white text-[9px] font-bold h-3.5 min-w-[14px] px-1 rounded-full flex items-center justify-center ring-2 ring-white tabular-nums">
-                        {item.badge}
-                      </span>
-                    ) : null}
                   </div>
                   <span
                     className={cn(
-                      'text-[10px] tracking-tight transition-colors',
-                      isActive ? 'text-amber-900 font-bold' : 'text-stone-400 font-medium'
+                      'text-[11px] tracking-tight transition-colors',
+                      isActive ? 'text-amber-950 font-bold' : 'text-stone-500 font-medium'
                     )}
                   >
                     {item.label}
                   </span>
                   {isActive && (
-                    <div className="absolute top-0 w-8 h-[2.5px] bg-[#FEDB71] rounded-b-full"></div>
+                    <div className="absolute top-0 w-10 h-[3px] bg-[#FEDB71] rounded-b-full shadow-xs"></div>
                   )}
                 </>
               )}

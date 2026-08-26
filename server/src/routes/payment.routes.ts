@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { verifyPayment, webhookHandler, getPaymentStatus, requestRefund } from '../controllers/payment.controller';
+import { verifyPayment, webhookHandler, getPaymentStatus, requestRefund, cancelPayment } from '../controllers/payment.controller';
 import { requireAuth, requireRole } from '../middlewares/auth';
 import { ROLE } from '../constants';
 import { validate } from '../middlewares/validate';
@@ -47,6 +47,8 @@ router.post(
   validate(verifySchema),
   verifyPayment
 );
+
+router.post('/cancel', requireAuth(), cancelPayment);
 
 router.get('/status/:paymentId', requireAuth(), getPaymentStatus);
 router.get('/:paymentId', requireAuth(), getPaymentStatus);

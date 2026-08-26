@@ -184,13 +184,14 @@ export const adminApi = {
   updateCoupon: (id: string, body: Record<string, unknown>) => apiPatch<{ coupon: Coupon }>(`/api/admin/coupons/${id}`, body).then((d) => d.coupon),
   deleteCoupon: (id: string) => apiDelete<{ message: string }>(`/api/admin/coupons/${id}`),
 
-  users: (params: { page?: number; limit?: number; search?: string; role?: string }) => {
+  users: (params: { page?: number; limit?: number; search?: string; role?: string; status?: string }) => {
     const q = new URLSearchParams();
     if (params.page) q.set('page', String(params.page));
     if (params.limit) q.set('limit', String(params.limit));
     if (params.search) q.set('search', params.search);
     if (params.role) q.set('role', params.role);
-    return apiGet<Paginated<User> & { users: User[] }>(`/api/admin/users?${q.toString()}`);
+    if (params.status) q.set('status', params.status);
+    return apiGet<Paginated<User> & { users: (User & { mobile?: string; mobileNumber?: string; phone?: string; status?: string; orderCount?: number; lastLoginAt?: string | null })[] }>(`/api/admin/users?${q.toString()}`);
   },
   userDetail: (id: string) => apiGet<{ user: User; stats: { orderCount: number; totalSpend: number } }>(`/api/admin/users/${id}`),
   setUserActive: (id: string, isActive: boolean) => apiPatch<{ user: User }>(`/api/admin/users/${id}/active`, { isActive }).then((d) => d.user),

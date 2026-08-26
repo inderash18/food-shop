@@ -91,6 +91,7 @@ export function createApp(): express.Application {
   app.use('/api/admin', adminAuthRoutes);
   app.use('/api', publicCatalogRoutes);
   app.use('/api', bookingRouter);
+  app.use('/api/admin/users', userRoutes);
   app.use(
     '/api/admin',
     adminCatalogRoutes,

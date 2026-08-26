@@ -97,12 +97,13 @@ export function OrderManagementPage() {
             className="border border-gray-200 rounded-xl text-xs py-2 px-3 focus:ring-2 focus:ring-blue-500 focus:outline-none text-gray-700 bg-white"
           >
             <option value="">All Statuses</option>
-            <option value="PAYMENT_PENDING">Pending</option>
             <option value="ORDER_CONFIRMED">Confirmed</option>
             <option value="PREPARING">Preparing</option>
-            <option value="READY">Ready</option>
+            <option value="READY">Ready for Pickup</option>
             <option value="COMPLETED">Completed</option>
             <option value="CANCELLED">Cancelled</option>
+            <option value="PAYMENT_PENDING">Payment Pending</option>
+            <option value="PAYMENT_FAILED">Payment Failed</option>
           </select>
         </div>
       </div>
@@ -132,7 +133,17 @@ export function OrderManagementPage() {
                     <td className="px-6 py-4">{order.userId?.name || 'Unknown'}</td>
                     <td className="px-6 py-4 font-medium text-gray-900">₹{order.total}</td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${order.status === 'COMPLETED' ? 'bg-gray-100 text-gray-600' : order.status === 'CANCELLED' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                          order.status === 'COMPLETED'
+                            ? 'bg-gray-100 text-gray-700'
+                            : order.status === 'CANCELLED' || order.status === 'PAYMENT_FAILED'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : order.status === 'PAYMENT_PENDING'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        }`}
+                      >
                         {order.status}
                       </span>
                     </td>

@@ -391,15 +391,48 @@ async function handleVerifyPayment(req: Request, res: Response) {
 }
 
 /**
+ * Helper to handle student/client explicit cancellation of a payment attempt
+ */
+async function handleCancelPayment(req: Request, res: Response) {
+  const { orderId, paymentId, reason } = req.body;
+  logger.info('[PAYMENT] Payment cancelled by customer', { orderId, paymentId, reason });
+
+  const payment = await Payment.findOne({
+    $or: [
+      ...(paymentId ? [{ _id: paymentId }, { providerPaymentId: paymentId }] : []),
+      ...(orderId ? [{ orderId }] : []),
+    ],
+  });
+
+  if (payment && payment.status === PAYMENT_STATUS.PENDING) {
+    payment.status = PAYMENT_STATUS.FAILED;
+    payment.verificationStatus = 'REJECTED';
+    payment.failureReason = reason || 'CUSTOMER_CANCELLED';
+    await payment.save();
+  }
+
+  const targetOrderId = orderId || payment?.orderId;
+  if (targetOrderId) {
+    await failOrder(String(targetOrderId));
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'Payment attempt marked as cancelled and stock released.',
+  });
+}
+
+/**
  * Webhook handler for Razorpay:
- * - Validates X-Razorpay-Signature
- * - Idempotent event processing
+ * - Validates X-Razorpay-Signature with timingSafeEqual
+ * - Idempotent event processing via PaymentWebhookEvent
+ * - Handles payment.captured, order.paid, payment.failed
  */
 async function handleWebhook(req: Request, res: Response) {
-  const signature = req.headers['x-razorpay-signature'] as string;
+  const signature = (req.headers['x-razorpay-signature'] || req.headers['x-razorpay-signature-v1']) as string;
   const rawBody = Buffer.isBuffer(req.body)
     ? req.body.toString('utf8')
-    : (req as any).rawBody || JSON.stringify(req.body);
+    : (req as any).rawBody || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
 
   if (!signature) {
     logger.warn('[PAYMENT] Webhook rejected: missing X-Razorpay-Signature');
@@ -412,19 +445,29 @@ async function handleWebhook(req: Request, res: Response) {
     .update(rawBody)
     .digest('hex');
 
-  if (signature !== expectedSignature) {
+  let isSigValid = false;
+  if (expectedSignature.length === signature.length) {
+    try {
+      isSigValid = crypto.timingSafeEqual(Buffer.from(expectedSignature, 'utf8'), Buffer.from(signature, 'utf8'));
+    } catch {
+      isSigValid = expectedSignature === signature;
+    }
+  }
+
+  if (!isSigValid) {
     logger.warn('[PAYMENT] Webhook rejected: signature mismatch');
     return res.status(400).json({ success: false, message: 'Invalid webhook signature' });
   }
 
   let eventPayload: any;
   try {
-    eventPayload = JSON.parse(rawBody);
+    eventPayload = typeof req.body === 'object' && !Buffer.isBuffer(req.body) ? req.body : JSON.parse(rawBody);
   } catch {
     return res.status(400).json({ success: false, message: 'Invalid JSON payload' });
   }
 
-  const eventId = eventPayload.event || `rzp_${Date.now()}`;
+  const eventHeaderId = (req.headers['x-razorpay-event-id'] as string) || undefined;
+  const eventId = eventHeaderId || eventPayload.event_id || eventPayload.id || `evt_${eventPayload.event}_${Date.now()}`;
   const paymentEntity = eventPayload.payload?.payment?.entity;
   const orderEntity = eventPayload.payload?.order?.entity;
   const providerPaymentId = orderEntity?.id || paymentEntity?.order_id || paymentEntity?.id;
@@ -450,12 +493,31 @@ async function handleWebhook(req: Request, res: Response) {
     processedAt: new Date(),
   });
 
+  // Handle successful payments
   if (eventPayload.event === 'payment.captured' || eventPayload.event === 'order.paid') {
     const payment = await Payment.findOne({
       $or: [{ providerPaymentId: providerPaymentId }, { providerPaymentId: paymentEntity?.id }],
     });
 
     if (payment) {
+      const order = payment.orderId ? await Order.findById(payment.orderId) : null;
+      const capturedAmountRupees = paymentEntity?.amount ? toRupees(paymentEntity.amount) : undefined;
+
+      // Validate amount integrity if order exists
+      if (order && capturedAmountRupees !== undefined && !isAmountEqual(capturedAmountRupees, order.total)) {
+        logger.error('[PAYMENT] Amount mismatch on webhook event', {
+          orderId: String(order._id),
+          expectedTotal: order.total,
+          capturedAmount: capturedAmountRupees,
+        });
+        payment.status = PAYMENT_STATUS.FAILED;
+        payment.verificationStatus = 'REJECTED';
+        payment.failureReason = 'AMOUNT_MISMATCH';
+        await payment.save();
+        await failOrder(String(order._id));
+        return res.status(200).json({ success: true, message: 'Amount mismatch handled' });
+      }
+
       payment.status = PAYMENT_STATUS.SUCCESS;
       payment.verificationStatus = 'VERIFIED';
       payment.providerTransactionId = paymentEntity?.id;
@@ -464,7 +526,28 @@ async function handleWebhook(req: Request, res: Response) {
 
       if (payment.orderId) {
         await confirmOrder(String(payment.orderId));
-        logger.info('[PAYMENT] Order marked PAID via webhook', {
+        logger.info('[PAYMENT] Order confirmed via webhook', {
+          orderId: String(payment.orderId),
+        });
+      }
+    }
+  }
+
+  // Handle failed payments
+  if (eventPayload.event === 'payment.failed') {
+    const payment = await Payment.findOne({
+      $or: [{ providerPaymentId: providerPaymentId }, { providerPaymentId: paymentEntity?.id }],
+    });
+
+    if (payment) {
+      payment.status = PAYMENT_STATUS.FAILED;
+      payment.verificationStatus = 'REJECTED';
+      payment.failureReason = paymentEntity?.error_description || 'GATEWAY_PAYMENT_FAILED';
+      await payment.save();
+
+      if (payment.orderId) {
+        await failOrder(String(payment.orderId));
+        logger.info('[PAYMENT] Order marked PAYMENT_FAILED and stock released via webhook', {
           orderId: String(payment.orderId),
         });
       }
@@ -478,6 +561,7 @@ async function handleWebhook(req: Request, res: Response) {
 router.post('/create-order', asyncHandler(handleCreateOrder));
 router.post('/verify-payment', asyncHandler(handleVerifyPayment));
 router.post('/verify', asyncHandler(handleVerifyPayment));
+router.post('/cancel', asyncHandler(handleCancelPayment));
 router.post('/webhook', express.raw({ type: '*/*', limit: '256kb' }), asyncHandler(handleWebhook));
 
 export default router;

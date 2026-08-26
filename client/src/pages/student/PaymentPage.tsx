@@ -308,9 +308,23 @@ export function PaymentPage() {
         }
       },
       onDismiss: () => {
-        toast.info('Payment modal dismissed');
+        stopPolling();
+        setUiState('CANCELLED');
+        apiClient.post('/api/payment/cancel', {
+          paymentId,
+          orderId,
+          reason: 'CUSTOMER_CANCELLED',
+        }).catch(() => {});
+        toast.info('Payment cancelled. Your order has not been confirmed.');
       },
       onError: (err) => {
+        stopPolling();
+        setUiState('FAILED');
+        apiClient.post('/api/payment/cancel', {
+          paymentId,
+          orderId,
+          reason: err?.description || 'GATEWAY_ERROR',
+        }).catch(() => {});
         toast.error(err?.description || 'Payment failed. Please retry.');
       },
     });
@@ -471,7 +485,7 @@ export function PaymentPage() {
       )}
 
       {/* ========================================================= */}
-      {/* STATE: CANCELLED (Section 11 Spec: Payment Cancelled)      */}
+      {/* STATE: CANCELLED (Payment Cancelled / Abandoned)           */}
       {/* ========================================================= */}
       {uiState === 'CANCELLED' && (
         <div className="bg-white rounded-3xl border border-amber-200 shadow-card p-7 text-center space-y-4 animate-in">
@@ -479,17 +493,23 @@ export function PaymentPage() {
             <AlertTriangle className="w-7 h-7" />
           </div>
           <div className="space-y-1">
-            <h2 className="text-base font-bold text-amber-950">Payment cancelled</h2>
+            <h2 className="text-base font-bold text-amber-950">Payment Cancelled</h2>
             <p className="text-stone-600 text-xs font-normal">
-              You have not been charged successfully. Your order has not been confirmed.
+              Your payment was not completed. Your order has not been confirmed.
             </p>
           </div>
-          <div className="pt-2">
-            <Link
-              to="/checkout"
-              className="block w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs border border-amber-300 transition-transform active:scale-98 text-center"
+          <div className="space-y-2 pt-2">
+            <button
+              onClick={handleOpenRazorpay}
+              className="w-full py-3.5 bg-[#FEDB71] hover:bg-[#F5CA38] text-amber-950 font-bold text-xs rounded-xl shadow-3xs border border-amber-300 transition-transform active:scale-98"
             >
-              RETURN TO CHECKOUT
+              TRY PAYMENT AGAIN
+            </button>
+            <Link
+              to="/menu"
+              className="block w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl transition-colors text-center"
+            >
+              BACK TO MENU
             </Link>
           </div>
         </div>

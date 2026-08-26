@@ -16,27 +16,104 @@ const router = Router();
 router.use(requireAuth(), loadUser(), requireRole(ROLE.ADMIN, ROLE.SUPER_ADMIN));
 
 const listUsers = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 50, search, role } = req.query as { page?: string; limit?: string; search?: string; role?: string };
+  const {
+    page = 1,
+    limit = 25,
+    search,
+    role,
+    status,
+  } = req.query as {
+    page?: string;
+    limit?: string;
+    search?: string;
+    role?: string;
+    status?: string;
+  };
+
   const filter: Record<string, unknown> = {};
-  if (role) filter.role = role;
+
+  if (role && role !== 'ALL') {
+    if (role === 'STAFF_ADMIN' || role === 'ADMINS') {
+      filter.role = { $in: [ROLE.ADMIN, ROLE.SUPER_ADMIN, ROLE.STAFF] };
+    } else {
+      filter.role = role.toUpperCase();
+    }
+  }
+
+  if (status && status !== 'ALL') {
+    if (status.toUpperCase() === 'ACTIVE') {
+      filter.isActive = true;
+    } else if (status.toUpperCase() === 'INACTIVE' || status.toUpperCase() === 'BLOCKED') {
+      filter.isActive = false;
+    }
+  }
+
   if (search?.trim()) {
     const term = search.trim();
+    const regex = new RegExp(term, 'i');
     filter.$or = [
-      { name: new RegExp(term, 'i') },
-      { email: new RegExp(term, 'i') },
-      { studentId: new RegExp(term, 'i') },
+      { name: regex },
+      { email: regex },
+      { emailNormalized: regex },
+      { studentId: regex },
+      { mobileNumber: regex },
+      { phone: regex },
     ];
   }
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(limit) || 25));
+
   const [users, total] = await Promise.all([
     User.find(filter)
       .sort({ createdAt: -1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit))
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
       .lean(),
     User.countDocuments(filter),
   ]);
-  const rows = users.map((u) => publicUser(u as never));
-  sendSuccess(res, { users: rows, total, page: Number(page), limit: Number(limit), pages: Math.max(1, Math.ceil(total / Number(limit))) });
+
+  const userIds = users.map((u) => u._id);
+  const orderCountMap = new Map<string, number>();
+
+  if (userIds.length > 0) {
+    try {
+      const counts = await Order.aggregate([
+        { $match: { userId: { $in: userIds } } },
+        { $group: { _id: '$userId', count: { $sum: 1 } } },
+      ]);
+      counts.forEach((c) => {
+        if (c._id) {
+          orderCountMap.set(String(c._id), c.count || 0);
+        }
+      });
+    } catch {
+      // In isolated tests without DB aggregation, fallback cleanly
+    }
+  }
+
+  const rows = users.map((u: any) => {
+    const pub = publicUser(u as never);
+    const count = orderCountMap.get(String(u._id)) || 0;
+    const mobile = u.mobileNumber || u.phone || '';
+    return {
+      ...pub,
+      mobile,
+      mobileNumber: mobile,
+      phone: mobile,
+      status: u.isActive ? 'ACTIVE' : 'INACTIVE',
+      lastLoginAt: u.lastLoginAt ? new Date(u.lastLoginAt).toISOString() : null,
+      orderCount: count,
+    };
+  });
+
+  sendSuccess(res, {
+    users: rows,
+    total,
+    page: pageNum,
+    limit: limitNum,
+    pages: Math.max(1, Math.ceil(total / limitNum)),
+  });
 });
 
 const getUserDetail = asyncHandler(async (req, res) => {

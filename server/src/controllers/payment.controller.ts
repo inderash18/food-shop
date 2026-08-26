@@ -112,6 +112,24 @@ export const getPaymentStatus = asyncHandler(async (req: Request, res: Response)
   }
 });
 
+export const cancelPayment = asyncHandler(async (req: Request, res: Response) => {
+  const { paymentId, orderId, reason } = req.body;
+  const target = paymentId || orderId;
+  const payment = target ? await paymentService.findPaymentForUser(target, req.userId) : null;
+  if (payment && payment.status === PAYMENT_STATUS.PENDING) {
+    payment.status = PAYMENT_STATUS.FAILED;
+    payment.verificationStatus = 'REJECTED';
+    payment.failureReason = reason || 'CUSTOMER_CANCELLED';
+    await payment.save();
+  }
+  const resolvedOrderId = orderId || payment?.orderId;
+  if (resolvedOrderId) {
+    const { failOrder } = await import('../services/order.service');
+    await failOrder(String(resolvedOrderId));
+  }
+  sendSuccess(res, { message: 'Payment cancelled and stock released' });
+});
+
 export const requestRefund = asyncHandler(async (req: Request, res: Response) => {
   await paymentService.refundPayment(req.params.paymentId);
   sendSuccess(res, { message: 'Refund initiated successfully' });

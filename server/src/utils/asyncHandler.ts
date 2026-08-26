@@ -4,9 +4,7 @@ import { AppError } from './errors';
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<unknown>;
 
 export function asyncHandler(fn: AsyncHandler): RequestHandler {
-  return (req, res, next) => {
-    fn(req, res, next).catch(next);
-  };
+  return (req, res, next) => fn(req, res, next).catch(next) as any;
 }
 
 export function assertNever(value: never): never {

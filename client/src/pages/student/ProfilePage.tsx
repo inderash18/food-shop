@@ -222,96 +222,64 @@ export function ProfilePage() {
         </div>
       </div>
 
-      {/* 2. Grouped Section: Account */}
-      <div className="bg-white rounded-[26px] border border-gray-100 shadow-card p-4 space-y-1">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-3 py-1">
-          Account
-        </p>
+      {/* 2. Simple Details & Contact Card */}
+      <div className="bg-white rounded-[26px] border border-amber-100 shadow-card p-5 space-y-3">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-amber-900/70">Personal Information</h2>
+        
+        <div className="space-y-2.5 divide-y divide-amber-50 text-xs">
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-stone-500 font-medium flex items-center gap-2">
+              <User className="w-4 h-4 text-amber-600" /> Full Name
+            </span>
+            <span className="font-bold text-amber-950">{user.name}</span>
+          </div>
 
+          <div className="flex items-center justify-between pt-2.5">
+            <span className="text-stone-500 font-medium flex items-center gap-2">
+              <Phone className="w-4 h-4 text-amber-600" /> Mobile Number
+            </span>
+            <span className="font-bold text-amber-950 font-mono">{user.phone || (user as any).mobileNumber || 'Not provided'}</span>
+          </div>
+
+          <div className="flex items-center justify-between pt-2.5">
+            <span className="text-stone-500 font-medium flex items-center gap-2">
+              <Mail className="w-4 h-4 text-amber-600" /> Email Address
+            </span>
+            <span className="font-bold text-amber-950 truncate max-w-[200px] sm:max-w-none">{user.email || '—'}</span>
+          </div>
+
+          <div className="flex items-center justify-between pt-2.5">
+            <span className="text-stone-500 font-medium flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-amber-600" /> Student / College ID
+            </span>
+            <span className="font-bold font-mono text-amber-950">{user.studentId || '—'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Orders Shortcut & Logout Action */}
+      <div className="bg-white rounded-[26px] border border-amber-100 shadow-card p-3 space-y-1">
         <Link
           to="/orders"
-          className="flex items-center justify-between p-3 rounded-2xl hover:bg-secondaryBg transition-colors"
+          className="flex items-center justify-between p-3 rounded-2xl hover:bg-amber-50/60 transition-colors"
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-teal-50 text-[#389C9A] flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-[#FEDB71] text-amber-950 flex items-center justify-center border border-amber-300 shadow-3xs">
               <Ticket className="w-4 h-4" />
             </div>
-            <span className="text-xs font-medium text-darkText">My Pre-Orders & Passes</span>
+            <div>
+              <p className="text-xs font-bold text-amber-950">My Orders</p>
+              <p className="text-[11px] text-stone-500 font-normal">View live food orders and tokens</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {activeOrdersCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-[#FEDB71] text-darkText text-[10px] font-semibold tabular-nums">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#FEDB71] text-amber-950 text-[10px] font-bold border border-amber-300">
                 {activeOrdersCount} Active
               </span>
             )}
-            <ChevronRight className="w-4 h-4 text-gray-400" />
+            <ChevronRight className="w-4 h-4 text-stone-400" />
           </div>
-        </Link>
-
-        <Link
-          to="/notifications"
-          className="flex items-center justify-between p-3 rounded-2xl hover:bg-secondaryBg transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-teal-50 text-[#389C9A] flex items-center justify-center">
-              <Bell className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-medium text-darkText">Notifications</span>
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-400" />
-        </Link>
-      </div>
-
-      {/* 3. Grouped Section: Preferences & Security */}
-      <div className="bg-white rounded-[26px] border border-gray-100 shadow-card p-4 space-y-1">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-3 py-1">
-          Security & Settings
-        </p>
-
-        <Link
-          to="/settings"
-          className="flex items-center justify-between p-3 rounded-2xl hover:bg-secondaryBg transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-secondaryBg text-gray-700 flex items-center justify-center">
-              <Settings className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-medium text-darkText">App Preferences</span>
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-400" />
-        </Link>
-
-        <Link
-          to="/settings#security"
-          className="flex items-center justify-between p-3 rounded-2xl hover:bg-secondaryBg transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-secondaryBg text-gray-700 flex items-center justify-center">
-              <Lock className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-medium text-darkText">Change Password</span>
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-400" />
-        </Link>
-      </div>
-
-      {/* 4. Grouped Section: Support & Logout */}
-      <div className="bg-white rounded-[26px] border border-gray-100 shadow-card p-4 space-y-1">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-3 py-1">
-          Support
-        </p>
-
-        <Link
-          to="/help"
-          className="flex items-center justify-between p-3 rounded-2xl hover:bg-secondaryBg transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-secondaryBg text-gray-700 flex items-center justify-center">
-              <HelpCircle className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-medium text-darkText">How Pre-Orders Work & FAQ</span>
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-400" />
         </Link>
 
         <button
@@ -319,10 +287,13 @@ export function ProfilePage() {
           className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-rose-50 text-rose-600 transition-colors"
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200 shadow-3xs">
               <LogOut className="w-4 h-4" />
             </div>
-            <span className="text-xs font-semibold">Log Out</span>
+            <div className="text-left">
+              <p className="text-xs font-bold">Log Out</p>
+              <p className="text-[11px] text-rose-400 font-normal">Sign out from this device</p>
+            </div>
           </div>
           <ChevronRight className="w-4 h-4 text-rose-400" />
         </button>

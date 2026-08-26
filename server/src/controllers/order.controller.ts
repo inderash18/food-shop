@@ -8,16 +8,49 @@ import { PAYMENT_STATUS, ORDER_STATUS } from '../constants';
 import { Types } from 'mongoose';
 
 export const getMyOrders = asyncHandler(async (req: Request, res: Response) => {
-  const { page = 1, limit = 20 } = req.query as { page?: string; limit?: string };
+  const { page = 1, limit = 20, includeIncomplete } = req.query as {
+    page?: string;
+    limit?: string;
+    includeIncomplete?: string;
+  };
+
+  const filter: Record<string, any> = { userId: req.userId };
+  if (includeIncomplete !== 'true') {
+    // Only return confirmed customer orders: paid & confirmed/preparing/ready/completed/cancelled
+    filter.paymentStatus = PAYMENT_STATUS.SUCCESS;
+    filter.status = {
+      $in: [
+        ORDER_STATUS.ORDER_CONFIRMED,
+        ORDER_STATUS.PREPARING,
+        ORDER_STATUS.READY,
+        ORDER_STATUS.COMPLETED,
+        ORDER_STATUS.CANCELLED,
+      ],
+    };
+  }
+
   const [orders, total] = await Promise.all([
-    Order.find({ userId: req.userId })
+    Order.find(filter)
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
       .lean(),
-    Order.countDocuments({ userId: req.userId }),
+    Order.countDocuments(filter),
   ]);
   sendSuccess(res, { orders, total, page: Number(page), limit: Number(limit), pages: Math.max(1, Math.ceil(total / Number(limit))) });
+});
+
+export const getMyOrderStatus = asyncHandler(async (req: Request, res: Response) => {
+  const order = await Order.findOne({ _id: req.params.orderId, userId: req.userId }).lean();
+  if (!order) throw new NotFoundError('Order not found');
+  sendSuccess(res, {
+    orderId: order._id,
+    orderNumber: order.orderNumber,
+    tokenNumber: order.tokenNumber,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    isConfirmed: isConfirmedPaid(order),
+  });
 });
 
 export const getMyOrder = asyncHandler(async (req: Request, res: Response) => {

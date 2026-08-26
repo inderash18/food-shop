@@ -93,14 +93,19 @@ export function HomePage() {
   return (
     <div className="space-y-6 pb-24 max-w-6xl mx-auto px-2 sm:px-4 antialiased">
       
-      {/* 1. Header & Actions */}
+      {/* 1. Friendly Student Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-amber-100 pb-5">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-amber-950 tracking-tight">
-            Pre-Order Overview
+            {(() => {
+              const hour = new Date().getHours();
+              const timeOfDay = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+              const firstName = user?.name ? user.name.split(' ')[0] : 'Student';
+              return `${timeOfDay}, ${firstName} 👋`;
+            })()}
           </h1>
-          <p className="text-xs font-normal text-stone-500 mt-1">
-            Manage active collection tokens, monitor preparation progress, and pre-order meals.
+          <p className="text-xs font-medium text-stone-500 mt-0.5">
+            What would you like to eat today?
           </p>
         </div>
 

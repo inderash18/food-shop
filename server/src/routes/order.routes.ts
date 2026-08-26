@@ -5,6 +5,7 @@ import { loadUser } from '../middlewares/loadUser';
 import { validate } from '../middlewares/validate';
 import {
   getMyOrders,
+  getMyOrderStatus,
   getMyOrder,
   getOrderByNumber,
   cancelMyOrder,
@@ -54,6 +55,7 @@ router.patch(
 router.get('/mine', getMyOrders);
 router.get('/mine/active', getMyActiveOrder);
 router.get('/number/:orderNumber', getOrderByNumber);
+router.get('/:orderId/status', getMyOrderStatus);
 router.get('/:orderId', getMyOrder);
 router.post('/:orderId/cancel', cancelMyOrder);
 router.post('/:orderId/reorder', reorder);

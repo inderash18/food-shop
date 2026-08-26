@@ -549,3 +549,33 @@ export async function updateOrderStatusAdmin(
   });
   return order;
 }
+
+/**
+ * Periodically finds stale orders in PAYMENT_PENDING state and fails them,
+ * releasing all temporarily reserved inventory back to available stock.
+ */
+export async function cleanupStalePendingOrders(olderThanMinutes = 15): Promise<number> {
+  const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000);
+  const staleOrders = await Order.find({
+    status: ORDER_STATUS.PAYMENT_PENDING,
+    createdAt: { $lte: cutoff },
+  });
+
+  let cleaned = 0;
+  for (const order of staleOrders) {
+    try {
+      await failOrder(String(order._id));
+      logger.info(`Stale pending order expired and stock released: ${order.orderNumber}`, {
+        orderId: String(order._id),
+      });
+      cleaned++;
+    } catch (err: any) {
+      logger.error(`Failed to cleanup stale pending order: ${order.orderNumber}`, {
+        orderId: String(order._id),
+        error: err?.message,
+      });
+    }
+  }
+  return cleaned;
+}
+
