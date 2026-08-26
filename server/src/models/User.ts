@@ -9,6 +9,8 @@ export interface IUser {
   emailNormalized?: string;
   mobileNumber?: string;
   phone?: string;
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
   passwordHash?: string;
   role: Role;
   isActive: boolean;
@@ -27,6 +29,8 @@ const userSchema = new Schema<IUser>(
     emailNormalized: { type: String, trim: true, lowercase: true, sparse: true, index: true },
     mobileNumber: { type: String, trim: true, sparse: true, unique: true, index: true },
     phone: { type: String, trim: true, maxlength: 20 },
+    phoneVerified: { type: Boolean, default: false },
+    emailVerified: { type: Boolean, default: false },
     avatarUrl: { type: String },
     passwordHash: { type: String, select: false },
     role: { type: String, enum: Object.values(ROLE), default: ROLE.STUDENT, index: true },

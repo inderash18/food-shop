@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Phone, KeyRound, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
+import { Phone, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { getErrorMessage } from '../../api/client';
 import { toast } from '../../components/ui/Toast';
 import { BrandLogo } from '../../components/ui/BrandLogo';
+import { OtpInput } from '../../components/auth/OtpInput';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -138,34 +139,26 @@ export function LoginPage() {
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4 text-xs">
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block font-semibold text-gray-700">Enter 6-Digit OTP</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStep('MOBILE');
-                      setOtp('');
-                    }}
-                    className="text-[11px] text-[#389C9A] hover:underline font-semibold"
-                  >
-                    Change Number
-                  </button>
-                </div>
-                <div className="relative">
-                  <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="123456"
-                    maxLength={6}
-                    required
-                    autoFocus
-                    className="w-full pl-10 pr-3.5 py-3 bg-secondaryBg border border-gray-200 rounded-xl text-sm font-bold tracking-widest text-center text-darkText focus:bg-white focus:ring-2 focus:ring-[#389C9A] focus:outline-none transition-all"
-                  />
-                </div>
-                <p className="text-[10px] text-gray-400 mt-1">OTP sent to +91 {mobileNumber}</p>
+              <div className="text-center space-y-1">
+                <h3 className="font-bold text-darkText text-sm">Verify your phone</h3>
+                <p className="text-[11px] text-gray-500">
+                  Enter the 6-digit verification code sent to <br />
+                  <span className="font-mono font-bold text-stone-800">+91 ******{mobileNumber.slice(-4)}</span>
+                </p>
+
+                {/* 6-Digit Accessible OTP Input */}
+                <OtpInput value={otp} onChange={setOtp} disabled={loading} />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('MOBILE');
+                    setOtp('');
+                  }}
+                  className="text-[11px] text-[#389C9A] hover:underline font-semibold pt-1"
+                >
+                  Change Number
+                </button>
               </div>
 
               <button

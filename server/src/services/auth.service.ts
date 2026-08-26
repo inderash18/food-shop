@@ -10,6 +10,7 @@ import { logger } from '../config/logger';
 
 import { requestOtp, verifyOtpCode } from './otp.service';
 import { normalizeIndianMobile } from '../utils/phone';
+import { sendVerificationOTP } from './email.service';
 
 interface RegisterInput {
   name: string;
@@ -22,6 +23,57 @@ interface RegisterInput {
 
 export async function requestAuthOtp(rawPhone: string, purpose: 'register' | 'login' = 'login') {
   return requestOtp(rawPhone, purpose);
+}
+
+export async function sendEmailAuthOtp(rawEmail: string, purpose: 'register' | 'login' = 'login') {
+  const email = rawEmail.trim().toLowerCase();
+  const res = await requestOtp(email, purpose);
+  await sendVerificationOTP({ email, otp: res.otpCode });
+  return {
+    email,
+    cooldownSeconds: res.cooldownSeconds,
+    expiresInSeconds: res.expiresInSeconds,
+  };
+}
+
+export async function verifyEmailAuthOtp(rawEmail: string, otp: string, extra?: { name?: string; password?: string }) {
+  const email = rawEmail.trim().toLowerCase();
+  await verifyOtpCode(email, otp);
+
+  let user = await User.findOne({
+    $or: [{ email }, { emailNormalized: email }],
+  });
+
+  if (!user) {
+    const username = extra?.name?.trim() || email.split('@')[0];
+    const passwordHash = extra?.password ? await hashPassword(extra.password) : undefined;
+    user = await User.create({
+      name: username,
+      email,
+      emailNormalized: email,
+      emailVerified: true,
+      phoneVerified: true,
+      passwordHash,
+      role: ROLE.STUDENT,
+      isActive: true,
+      approved: true,
+    });
+    await recordAudit({ actorId: user.id, action: 'REGISTER', resource: 'user', resourceId: user.id, metadata: { method: 'EMAIL_OTP' } });
+  } else {
+    if (!user.isActive) {
+      throw new ForbiddenError('Your account has been deactivated. Contact support.');
+    }
+    user.emailVerified = true;
+    if (extra?.name && extra.name.trim().length >= 2) {
+      user.name = extra.name.trim();
+    }
+    await user.save();
+    await user.updateOne({ $set: { lastLoginAt: new Date() } });
+    await recordAudit({ actorId: user.id, action: 'LOGIN', resource: 'user', resourceId: user.id, metadata: { method: 'EMAIL_OTP' } });
+  }
+
+  const { accessToken, refreshToken } = await issueTokenPair(user.id, user.role);
+  return { user: publicUser(user), accessToken, refreshToken };
 }
 
 export async function verifyAuthOtp(rawPhone: string, otp: string, name?: string) {
@@ -45,6 +97,7 @@ export async function verifyAuthOtp(rawPhone: string, otp: string, name?: string
       name: defaultName,
       mobileNumber: normalizedPhone,
       phone: normalizedPhone,
+      phoneVerified: true,
       role: ROLE.STUDENT,
       isActive: true,
       approved: true,
@@ -54,11 +107,11 @@ export async function verifyAuthOtp(rawPhone: string, otp: string, name?: string
     if (!user.isActive) {
       throw new ForbiddenError('Your account has been deactivated. Contact support.');
     }
-    // Update user profile name if given
+    user.phoneVerified = true;
     if (name && name.trim().length >= 2 && user.name.startsWith('Customer ')) {
       user.name = name.trim();
-      await user.save();
     }
+    await user.save();
     await user.updateOne({ $set: { lastLoginAt: new Date() } });
     await recordAudit({ actorId: user.id, action: 'LOGIN', resource: 'user', resourceId: user.id, metadata: { method: 'OTP' } });
   }
@@ -212,6 +265,8 @@ export function publicUser(user: {
   email?: string;
   mobileNumber?: string;
   phone?: string;
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
   avatarUrl?: string;
   role: Role;
   isActive: boolean;
@@ -225,6 +280,8 @@ export function publicUser(user: {
     email: user.email || '',
     mobileNumber: user.mobileNumber || user.phone || '',
     phone: user.phone || user.mobileNumber || '',
+    phoneVerified: user.phoneVerified !== false,
+    emailVerified: user.emailVerified !== false,
     avatarUrl: user.avatarUrl ?? undefined,
     role: user.role,
     isActive: user.isActive,

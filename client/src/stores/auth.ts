@@ -8,6 +8,12 @@ interface AuthState {
   initialized: boolean;
   sendOtp: (mobileNumber: string, purpose?: 'login' | 'register') => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
   verifyOtp: (mobileNumber: string, otp: string, name?: string) => Promise<User>;
+  sendEmailOTP: (email: string, purpose?: 'login' | 'register') => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
+  verifyEmailOTP: (email: string, otp: string, name?: string, password?: string) => Promise<User>;
+  resendEmailOTP: (email: string, purpose?: 'login' | 'register') => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
+  sendPhoneOTP: (phone: string, purpose?: 'login' | 'register') => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
+  verifyPhoneOTP: (phone: string, otp: string, name?: string) => Promise<User>;
+  resendPhoneOTP: (phone: string, purpose?: 'login' | 'register') => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
   login: (identifier: string, password: string) => Promise<User>;
   register: (data: { name: string; email?: string; studentId?: string; password?: string; phone?: string; mobileNumber?: string }) => Promise<User>;
   logout: () => Promise<void>;
@@ -32,6 +38,44 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     set({ user: data.user, initialized: true });
     return data.user;
+  },
+
+  sendEmailOTP: async (email, purpose = 'login') => {
+    const res = await apiPost<{ cooldownSeconds: number; expiresInSeconds: number }>('/api/auth/send-email-otp', { email, purpose });
+    return res;
+  },
+
+  verifyEmailOTP: async (email, otp, name, password) => {
+    const data = await apiPost<{ user: User; accessToken: string }>('/api/auth/verify-email-otp', { email, otp, name, password });
+    if (data.accessToken) {
+      setAccessToken(data.accessToken);
+    }
+    set({ user: data.user, initialized: true });
+    return data.user;
+  },
+
+  resendEmailOTP: async (email, purpose = 'login') => {
+    const res = await apiPost<{ cooldownSeconds: number; expiresInSeconds: number }>('/api/auth/resend-email-otp', { email, purpose });
+    return res;
+  },
+
+  sendPhoneOTP: async (phone, purpose = 'login') => {
+    const res = await apiPost<{ cooldownSeconds: number; expiresInSeconds: number }>('/api/auth/send-phone-otp', { phone, purpose });
+    return res;
+  },
+
+  verifyPhoneOTP: async (phone, otp, name) => {
+    const data = await apiPost<{ user: User; accessToken: string }>('/api/auth/verify-phone-otp', { phone, otp, name });
+    if (data.accessToken) {
+      setAccessToken(data.accessToken);
+    }
+    set({ user: data.user, initialized: true });
+    return data.user;
+  },
+
+  resendPhoneOTP: async (phone, purpose = 'login') => {
+    const res = await apiPost<{ cooldownSeconds: number; expiresInSeconds: number }>('/api/auth/resend-phone-otp', { phone, purpose });
+    return res;
   },
 
   login: async (identifier, password) => {

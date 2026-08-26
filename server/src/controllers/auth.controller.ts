@@ -13,7 +13,10 @@ import {
   issueTokenPair,
   requestAuthOtp,
   verifyAuthOtp,
+  sendEmailAuthOtp,
+  verifyEmailAuthOtp,
 } from '../services/auth.service';
+import { sendMsg91OTP, verifyMsg91OTP, resendMsg91OTP } from '../services/msg91.service';
 import { env } from '../config/env';
 import { AppError } from '../utils/errors';
 import { recordAudit } from '../services/audit.service';
@@ -114,11 +117,13 @@ export const createAdmin = asyncHandler(async (req: Request, res: Response) => {
 
 export const sendOtp = asyncHandler(async (req: Request, res: Response) => {
   const { mobileNumber, purpose } = req.body as { mobileNumber: string; purpose?: 'register' | 'login' };
-  if (!mobileNumber) {
+  const phone = mobileNumber || (req.body as any).phone;
+  if (!phone) {
     throw new AppError(400, 'INVALID_PHONE', 'Mobile number is required');
   }
-  const result = await requestAuthOtp(mobileNumber, purpose || 'login');
+  const result = await requestAuthOtp(phone, purpose || 'login');
   sendSuccess(res, {
+    success: true,
     message: 'OTP sent successfully via SMS',
     mobileNumber: result.mobileNumber,
     cooldownSeconds: result.cooldownSeconds,
@@ -128,10 +133,100 @@ export const sendOtp = asyncHandler(async (req: Request, res: Response) => {
 
 export const verifyOtp = asyncHandler(async (req: Request, res: Response) => {
   const { mobileNumber, otp, name } = req.body as { mobileNumber: string; otp: string; name?: string };
-  if (!mobileNumber || !otp) {
+  const phone = mobileNumber || (req.body as any).phone;
+  if (!phone || !otp) {
     throw new AppError(400, 'MISSING_FIELDS', 'Mobile number and OTP are required');
   }
-  const { user, accessToken, refreshToken } = await verifyAuthOtp(mobileNumber, otp, name);
+  const { user, accessToken, refreshToken } = await verifyAuthOtp(phone, otp, name);
   setAuthCookies(res, accessToken, refreshToken);
-  sendSuccess(res, { user, accessToken, message: 'Authenticated successfully' });
+  sendSuccess(res, { success: true, verified: true, user, accessToken, message: 'Authenticated successfully' });
+});
+
+export const sendEmailOtp = asyncHandler(async (req: Request, res: Response) => {
+  const { email, purpose } = req.body as { email: string; purpose?: 'register' | 'login' };
+  if (!email) {
+    throw new AppError(400, 'BAD_REQUEST', 'Email address is required');
+  }
+  const result = await sendEmailAuthOtp(email, purpose || 'login');
+  sendSuccess(res, {
+    success: true,
+    message: 'Verification code sent successfully',
+    email: result.email,
+    cooldownSeconds: result.cooldownSeconds,
+    expiresInSeconds: result.expiresInSeconds,
+  });
+});
+
+export const verifyEmailOtp = asyncHandler(async (req: Request, res: Response) => {
+  const { email, otp, name, password } = req.body as { email: string; otp: string; name?: string; password?: string };
+  if (!email || !otp) {
+    throw new AppError(400, 'MISSING_FIELDS', 'Email address and verification code are required');
+  }
+  const { user, accessToken, refreshToken } = await verifyEmailAuthOtp(email, otp, { name, password });
+  setAuthCookies(res, accessToken, refreshToken);
+  sendSuccess(res, { success: true, verified: true, user, accessToken, message: 'Email verified successfully' });
+});
+
+export const resendEmailOtp = asyncHandler(async (req: Request, res: Response) => {
+  const { email, purpose } = req.body as { email: string; purpose?: 'register' | 'login' };
+  if (!email) {
+    throw new AppError(400, 'BAD_REQUEST', 'Email address is required');
+  }
+  const result = await sendEmailAuthOtp(email, purpose || 'login');
+  sendSuccess(res, {
+    success: true,
+    message: 'Verification code resent successfully',
+    email: result.email,
+    cooldownSeconds: result.cooldownSeconds,
+    expiresInSeconds: result.expiresInSeconds,
+  });
+});
+
+export const sendPhoneOtp = asyncHandler(async (req: Request, res: Response) => {
+  const { phone, purpose } = req.body as { phone: string; purpose?: 'register' | 'login' };
+  if (!phone) {
+    throw new AppError(400, 'INVALID_PHONE', 'Phone number is required');
+  }
+  const result = await sendMsg91OTP(phone, purpose || 'login');
+  if (!result.success) {
+    throw new AppError(400, 'BAD_REQUEST', result.message);
+  }
+  sendSuccess(res, {
+    success: true,
+    message: result.message || 'OTP sent successfully',
+    cooldownSeconds: result.cooldownSeconds || 60,
+    expiresInSeconds: result.expiresInSeconds || 300,
+  });
+});
+
+export const verifyPhoneOtp = asyncHandler(async (req: Request, res: Response) => {
+  const { phone, otp, name } = req.body as { phone: string; otp: string; name?: string };
+  if (!phone || !otp) {
+    throw new AppError(400, 'MISSING_FIELDS', 'Phone number and OTP are required');
+  }
+  const msg91Result = await verifyMsg91OTP(phone, otp, 'login');
+  if (!msg91Result.success) {
+    throw new AppError(400, 'INVALID_OTP', msg91Result.message);
+  }
+
+  const { user, accessToken, refreshToken } = await verifyAuthOtp(phone, otp, name);
+  setAuthCookies(res, accessToken, refreshToken);
+  sendSuccess(res, { success: true, verified: true, user, accessToken, message: 'Phone number verified successfully' });
+});
+
+export const resendPhoneOtp = asyncHandler(async (req: Request, res: Response) => {
+  const { phone, purpose } = req.body as { phone: string; purpose?: 'register' | 'login' };
+  if (!phone) {
+    throw new AppError(400, 'INVALID_PHONE', 'Phone number is required');
+  }
+  const result = await resendMsg91OTP(phone, purpose || 'login');
+  if (!result.success) {
+    throw new AppError(400, 'BAD_REQUEST', result.message);
+  }
+  sendSuccess(res, {
+    success: true,
+    message: result.message || 'OTP resent successfully',
+    cooldownSeconds: result.cooldownSeconds || 60,
+    expiresInSeconds: result.expiresInSeconds || 300,
+  });
 });

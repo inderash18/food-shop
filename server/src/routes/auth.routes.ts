@@ -1,5 +1,22 @@
 import { Router } from 'express';
-import { register, login, refresh, logout, me, createAdmin, updateProfile, changePassword, sendOtp, verifyOtp } from '../controllers/auth.controller';
+import {
+  register,
+  login,
+  refresh,
+  logout,
+  me,
+  createAdmin,
+  updateProfile,
+  changePassword,
+  sendOtp,
+  verifyOtp,
+  sendEmailOtp,
+  verifyEmailOtp,
+  resendEmailOtp,
+  sendPhoneOtp,
+  verifyPhoneOtp,
+  resendPhoneOtp,
+} from '../controllers/auth.controller';
 import { validate } from '../middlewares/validate';
 import { registerSchema, loginSchema, createAdminSchema, updateProfileSchema, changePasswordSchema } from '../validators/auth.schema';
 import { requireAuth } from '../middlewares/auth';
@@ -11,6 +28,7 @@ import { env } from '../config/env';
 
 const router = Router();
 
+// Mobile / Phone OTP Routes
 router.post(
   '/send-otp',
   rateLimit({ windowMs: 5 * 60 * 1000, max: 10, keyPrefix: 'send_otp' }),
@@ -20,6 +38,38 @@ router.post(
   '/verify-otp',
   rateLimit({ windowMs: 5 * 60 * 1000, max: 15, keyPrefix: 'verify_otp' }),
   verifyOtp
+);
+router.post(
+  '/send-phone-otp',
+  rateLimit({ windowMs: 5 * 60 * 1000, max: 10, keyPrefix: 'send_phone_otp' }),
+  sendPhoneOtp
+);
+router.post(
+  '/verify-phone-otp',
+  rateLimit({ windowMs: 5 * 60 * 1000, max: 15, keyPrefix: 'verify_phone_otp' }),
+  verifyPhoneOtp
+);
+router.post(
+  '/resend-phone-otp',
+  rateLimit({ windowMs: 5 * 60 * 1000, max: 10, keyPrefix: 'resend_phone_otp' }),
+  resendPhoneOtp
+);
+
+// Email OTP Routes (Gmail SMTP + Nodemailer)
+router.post(
+  '/send-email-otp',
+  rateLimit({ windowMs: 5 * 60 * 1000, max: 10, keyPrefix: 'send_email_otp' }),
+  sendEmailOtp
+);
+router.post(
+  '/verify-email-otp',
+  rateLimit({ windowMs: 5 * 60 * 1000, max: 15, keyPrefix: 'verify_email_otp' }),
+  verifyEmailOtp
+);
+router.post(
+  '/resend-email-otp',
+  rateLimit({ windowMs: 5 * 60 * 1000, max: 10, keyPrefix: 'resend_email_otp' }),
+  resendEmailOtp
 );
 
 router.post(
