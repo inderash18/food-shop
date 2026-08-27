@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/response';
 import { paymentService } from '../services/payment.service';
+import { failOrder } from '../services/order.service';
 import { Payment, Order } from '../models';
 import { PAYMENT_STATUS } from '../constants';
 import { NotFoundError, AppError, PaymentError } from '../utils/errors';
@@ -41,7 +42,6 @@ export const verifyPayment = asyncHandler(async (req: Request, res: Response) =>
         payment.verificationStatus = 'REJECTED';
         payment.failureReason = 'SIGNATURE_VERIFICATION_FAILED';
         await payment.save();
-        const { failOrder } = await import('../services/order.service');
         await failOrder(String(payment.orderId));
       }
 

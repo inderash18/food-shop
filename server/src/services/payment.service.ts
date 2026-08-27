@@ -5,6 +5,7 @@ import { AppError, NotFoundError, PaymentError, ConflictError, PaymentProviderNo
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { recordAudit } from './audit.service';
+import { confirmOrder, failOrder } from './order.service';
 import { isAmountEqual, toPaise, toRupees } from '../utils/money';
 
 export interface CreatePaymentInput {
@@ -186,7 +187,6 @@ class PaymentGatewayService {
         };
         await payment.save();
 
-        const { failOrder } = await import('./order.service');
         await failOrder(String(payment.orderId));
 
         logger.warn(`Payment failed: ${String(payment._id)} - Amount mismatch: expected ₹${order.total}, got ₹${result.amount}`);
@@ -200,7 +200,6 @@ class PaymentGatewayService {
         payment.failureReason = 'CURRENCY_MISMATCH';
         await payment.save();
 
-        const { failOrder } = await import('./order.service');
         await failOrder(String(payment.orderId));
 
         logger.warn(`Payment failed: ${String(payment._id)} - Currency mismatch: expected ${payment.currency}, got ${result.currency}`);
@@ -262,13 +261,11 @@ class PaymentGatewayService {
       if (!updatedPayment) {
         // Another process already verified it
         const alreadyVerified = await Payment.findById(payment._id);
-        const { confirmOrder } = await import('./order.service');
         const confirmedOrder = await confirmOrder(String(payment.orderId));
         logger.info(`Order confirmed: ${String(order._id)}`);
         return { payment: alreadyVerified!, order: confirmedOrder };
       }
 
-      const { confirmOrder } = await import('./order.service');
       const confirmedOrder = await confirmOrder(String(payment.orderId));
       logger.info(`Order confirmed: ${String(order._id)}`);
       return { payment: updatedPayment, order: confirmedOrder };
@@ -279,7 +276,6 @@ class PaymentGatewayService {
         { _id: payment._id },
         { $set: { status: PAYMENT_STATUS.FAILED, verificationStatus: 'REJECTED' } }
       );
-      const { failOrder } = await import('./order.service');
       await failOrder(String(payment.orderId));
       logger.warn(`Payment failed: ${String(payment._id)}`);
       payment.status = PAYMENT_STATUS.FAILED;
@@ -339,7 +335,6 @@ class PaymentGatewayService {
         payment.status = PAYMENT_STATUS.FAILED;
         payment.verificationStatus = 'REJECTED';
         await payment.save();
-        const { failOrder } = await import('./order.service');
         await failOrder(String(payment.orderId));
         eventRecord.processed = true;
         eventRecord.processedAt = new Date();
