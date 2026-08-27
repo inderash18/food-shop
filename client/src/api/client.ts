@@ -28,13 +28,13 @@ export function setAccessToken(token: string | null): void {
 
 export function getAccessToken(): string | null {
   if (!accessToken) {
-    accessToken = sessionStorage.getItem('studentAccessToken') || null;
+    accessToken = sessionStorage.getItem('studentAccessToken') || sessionStorage.getItem('adminAccessToken') || localStorage.getItem('token') || null;
   }
   return accessToken;
 }
 
 export function getAdminToken(): string | null {
-  return sessionStorage.getItem('adminAccessToken') || null;
+  return sessionStorage.getItem('adminAccessToken') || sessionStorage.getItem('studentAccessToken') || localStorage.getItem('token') || accessToken || null;
 }
 
 export function setAdminToken(token: string | null): void {
@@ -49,16 +49,12 @@ client.interceptors.request.use((config) => {
   const url = config.url || '';
   const isAdminRequest = url.includes('/admin') || url.startsWith('/api/admin');
 
-  if (isAdminRequest) {
-    const adminTok = getAdminToken();
-    if (adminTok) {
-      config.headers.Authorization = `Bearer ${adminTok}`;
-    }
-  } else {
-    const studentTok = getAccessToken();
-    if (studentTok) {
-      config.headers.Authorization = `Bearer ${studentTok}`;
-    }
+  const token = isAdminRequest
+    ? (getAdminToken() || getAccessToken())
+    : (getAccessToken() || getAdminToken());
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });

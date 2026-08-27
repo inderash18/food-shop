@@ -69,7 +69,7 @@ export function ProductManagementPage() {
   });
 
   // Queries
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin-products', debouncedSearch, statusFilter, selectedCategory, page],
     queryFn: () =>
       adminApi.products({
@@ -310,6 +310,18 @@ export function ProductManagementPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="p-12 text-center text-xs text-slate-400">Loading food catalog...</div>
+        ) : isError ? (
+          <div className="p-12 text-center text-xs space-y-2">
+            <AlertTriangle className="w-8 h-8 mx-auto text-rose-500" />
+            <p className="font-bold text-slate-800 text-sm">Unable to load products</p>
+            <p className="text-slate-500">{(error as any)?.response?.data?.message || (error as any)?.message || 'Please verify authentication and try again.'}</p>
+            <button
+              onClick={() => refetch()}
+              className="mt-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl font-bold hover:bg-blue-100 transition-colors"
+            >
+              Retry Loading
+            </button>
+          </div>
         ) : productsList.length > 0 ? (
           <>
             {/* Desktop Table */}
@@ -331,7 +343,7 @@ export function ProductManagementPage() {
                     const categoryName =
                       typeof product.categoryId === 'object' && product.categoryId !== null
                         ? (product.categoryId as Category).name
-                        : 'General';
+                        : categories.find((c) => String(c._id) === String(product.categoryId))?.name || 'General';
 
                     return (
                       <tr
@@ -468,7 +480,7 @@ export function ProductManagementPage() {
                 const categoryName =
                   typeof product.categoryId === 'object' && product.categoryId !== null
                     ? (product.categoryId as Category).name
-                    : 'General';
+                    : categories.find((c) => String(c._id) === String(product.categoryId))?.name || 'General';
 
                 return (
                   <div
