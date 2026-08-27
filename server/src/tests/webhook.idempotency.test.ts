@@ -42,9 +42,11 @@ describe('Payment Webhook Idempotency', () => {
       }
       return null; // For the second call, it's no longer PAYMENT_PENDING
     });
-    vi.spyOn(Order, 'findById').mockImplementation(() => ({
-      session: vi.fn().mockResolvedValue(orderState),
-    } as any));
+    vi.spyOn(Order, 'findById').mockImplementation(() => {
+      const promise: any = Promise.resolve(orderState);
+      promise.session = vi.fn().mockReturnValue(Promise.resolve(orderState));
+      return promise;
+    });
     const updateProductSpy = vi.spyOn(Product, 'updateOne').mockResolvedValue({
       acknowledged: true,
       modifiedCount: 1,

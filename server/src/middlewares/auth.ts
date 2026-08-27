@@ -14,6 +14,7 @@ declare global {
 import { env } from '../config/env';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors';
 import { getAuthCookieOptions } from '../utils/cookies';
+import { refreshSession } from '../services/auth.service';
 
 /**
  * Authenticates the request via Bearer header or HTTP-only auth cookies.
@@ -24,15 +25,13 @@ export function requireAuth(): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction) => {
     let token: string | undefined;
 
-    const header = req.headers.authorization;
-    if (header?.startsWith('Bearer ')) {
-      token = header.slice(7);
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.slice(7).trim();
     } else if (req.cookies?.adminAccessToken) {
       token = req.cookies.adminAccessToken;
     } else if (req.cookies?.accessToken) {
       token = req.cookies.accessToken;
-    } else if (req.cookies?.token) {
-      token = req.cookies.token;
     }
 
     if (token) {
@@ -50,7 +49,6 @@ export function requireAuth(): RequestHandler {
     const adminRefreshToken = req.cookies?.adminRefreshToken;
     if (adminRefreshToken) {
       try {
-        const { refreshSession } = await import('../services/auth.service');
         const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await refreshSession(adminRefreshToken);
 
         res.cookie('adminRefreshToken', newRefreshToken, getAuthCookieOptions(7 * 24 * 60 * 60 * 1000));
@@ -70,7 +68,6 @@ export function requireAuth(): RequestHandler {
     const refreshToken = req.cookies?.refreshToken;
     if (refreshToken) {
       try {
-        const { refreshSession } = await import('../services/auth.service');
         const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await refreshSession(refreshToken);
 
         res.cookie('refreshToken', newRefreshToken, getAuthCookieOptions(7 * 24 * 60 * 60 * 1000));

@@ -67,7 +67,7 @@ class PaymentGatewayService {
   }
 
   async findPaymentForUser(identifier: string, userId?: string): Promise<HydratedDocument<IPayment> | null> {
-    const isObjectId = Types.ObjectId.isValid(identifier);
+    const isObjectId = /^[a-f\d]{24}$/i.test(identifier);
     const query: any = {
       $or: [
         ...(isObjectId ? [{ _id: new Types.ObjectId(identifier) }, { orderId: new Types.ObjectId(identifier) }] : []),
@@ -76,7 +76,7 @@ class PaymentGatewayService {
       ],
     };
     if (userId) {
-      query.userId = new Types.ObjectId(userId);
+      query.userId = /^[a-f\d]{24}$/i.test(userId) ? new Types.ObjectId(userId) : userId;
     }
     return Payment.findOne(query).sort({ createdAt: -1 });
   }

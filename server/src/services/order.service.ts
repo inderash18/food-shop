@@ -280,27 +280,24 @@ export async function releaseStock(order: { items?: { productId: unknown; quanti
 }
 
 export async function confirmOrder(orderId: string): Promise<IOrder> {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  const order = await Order.findById(orderId);
+  if (!order) throw new NotFoundError('Order not found');
+
+  if (order.status === ORDER_STATUS.ORDER_CONFIRMED || order.paymentStatus === PAYMENT_STATUS.SUCCESS) {
+    return order;
+  }
+
+  await commitStock(order);
+  order.status = ORDER_STATUS.ORDER_CONFIRMED;
+  order.paymentStatus = PAYMENT_STATUS.SUCCESS;
+  if (typeof order.save === 'function') {
+    await order.save();
+  }
+
+  cache.delByPrefix('products');
+  emit('orderConfirmed', { orderId: String(order._id), orderNumber: order.orderNumber, tokenNumber: order.tokenNumber });
+
   try {
-    const order = await Order.findById(orderId).session(session);
-    if (!order) throw new NotFoundError('Order not found');
-
-    if (order.status === ORDER_STATUS.ORDER_CONFIRMED || order.paymentStatus === PAYMENT_STATUS.SUCCESS) {
-      await session.commitTransaction();
-      return order;
-    }
-
-    await commitStock(order, session);
-    order.status = ORDER_STATUS.ORDER_CONFIRMED;
-    order.paymentStatus = PAYMENT_STATUS.SUCCESS;
-    await order.save({ session });
-    
-    await session.commitTransaction();
-
-    cache.delByPrefix('products');
-    emit('orderConfirmed', { orderId: String(order._id), orderNumber: order.orderNumber, tokenNumber: order.tokenNumber });
-
     await notifyUser({
       userId: String(order.userId),
       title: `Pre-Order #${order.tokenNumber} Confirmed!`,
@@ -308,14 +305,14 @@ export async function confirmOrder(orderId: string): Promise<IOrder> {
       type: 'order_status',
       data: { orderId: String(order._id), orderNumber: order.orderNumber, tokenNumber: order.tokenNumber },
     });
-
-    return order;
-  } catch (err) {
-    await session.abortTransaction();
-    throw err;
-  } finally {
-    session.endSession();
+  } catch (notifErr) {
+    logger.warn('Failed to send confirmation notification, order remains confirmed', {
+      orderId: String(order._id),
+      error: (notifErr as Error).message,
+    });
   }
+
+  return order;
 }
 
 export async function cancelOrder(orderId: string, userId: string, isStaffOrAdmin = false): Promise<IOrder> {

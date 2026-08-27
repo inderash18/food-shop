@@ -5,6 +5,7 @@ import {
   logoutSession,
   publicUser,
   issueTokenPair,
+  refreshSession,
 } from '../services/auth.service';
 import { env } from '../config/env';
 import { AppError, ForbiddenError, UnauthorizedError } from '../utils/errors';
@@ -109,7 +110,6 @@ export const adminMe = asyncHandler(handleAdminMe);
 export async function handleAdminRefresh(req: Request, res: Response) {
   const token = req.cookies?.[ADMIN_REFRESH_COOKIE] ?? req.cookies?.refreshToken;
   if (!token) throw new UnauthorizedError('No admin refresh token provided');
-  const { refreshSession } = await import('../services/auth.service');
   const { accessToken, refreshToken } = await refreshSession(token);
   setAdminAuthCookies(res, accessToken, refreshToken);
   return sendSuccess(res, { accessToken });

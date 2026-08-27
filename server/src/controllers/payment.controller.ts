@@ -124,7 +124,6 @@ export const cancelPayment = asyncHandler(async (req: Request, res: Response) =>
   }
   const resolvedOrderId = orderId || payment?.orderId;
   if (resolvedOrderId) {
-    const { failOrder } = await import('../services/order.service');
     await failOrder(String(resolvedOrderId));
   }
   sendSuccess(res, { message: 'Payment cancelled and stock released' });

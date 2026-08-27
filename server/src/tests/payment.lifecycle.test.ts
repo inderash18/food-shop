@@ -126,9 +126,7 @@ describe('Payment & Order Lifecycle Verification Suite', () => {
     };
     vi.spyOn(mongoose, 'startSession').mockResolvedValue(mockSession as any);
 
-    vi.spyOn(Order, 'findById').mockReturnValue({
-      session: vi.fn().mockResolvedValue(mockOrder),
-    } as any);
+    vi.spyOn(Order, 'findById').mockResolvedValue(mockOrder as any);
     vi.spyOn(Product, 'updateOne').mockResolvedValue({ modifiedCount: 1 } as any);
 
     // Confirm order
