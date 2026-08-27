@@ -51,7 +51,7 @@ const seedProducts = [
   { name: 'Tea', category: 'beverages', price: 15, stock: 200, minimumStock: 30, prepMinutes: 2, isVeg: true },
   { name: 'Coffee', category: 'beverages', price: 20, stock: 180, minimumStock: 30, prepMinutes: 2, isVeg: true },
   { name: 'Fresh Juice', category: 'beverages', price: 40, stock: 50, minimumStock: 10, prepMinutes: 4, isVeg: true },
-  { name: 'Bottled Water', category: 'beverages', price: 20, stock: 300, minimumStock: 50, prepMinutes: 1, isVeg: true },
+  { name: 'Bottled Water', category: 'beverages', price: 1, stock: 300, minimumStock: 50, prepMinutes: 1, isVeg: true },
   { name: 'Brownie', category: 'desserts', price: 60, stock: 30, minimumStock: 5, prepMinutes: 2, isVeg: true },
   { name: 'Veg Combo (Meal + Juice)', category: 'combos', price: 110, stock: 25, minimumStock: 5, prepMinutes: 12, isVeg: true },
 ];
