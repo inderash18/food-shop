@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
-import { Order } from '../models';
+import { Order, Product } from '../models';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/response';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 import { cancelOrder, isConfirmedPaid, markOrderCollected, updateKitchenPrepStatus } from '../services/order.service';
+import { addToCart } from '../services/cart.service';
 import { PAYMENT_STATUS, ORDER_STATUS } from '../constants';
 import { Types } from 'mongoose';
 
@@ -213,8 +214,6 @@ export const reorder = asyncHandler(async (req: Request, res: Response) => {
   if (!order) throw new NotFoundError('Order not found');
   if (String(order.userId) !== req.userId) throw new ForbiddenError('Not your order');
 
-  const { addToCart } = await import('../services/cart.service');
-  const { Product } = await import('../models');
   const added: string[] = [];
   for (const item of order.items) {
     const product = await Product.findOne({ _id: item.productId, isActive: true });

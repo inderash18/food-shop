@@ -6,7 +6,7 @@ import { validate } from '../middlewares/validate';
 import { User, Order, Cart, RefreshToken, Notification, OtpToken } from '../models';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/response';
-import { NotFoundError, ConflictError } from '../utils/errors';
+import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { recordAudit } from '../services/audit.service';
 import { ROLE, AUDIT_ACTION } from '../constants';
 import { publicUser, generateTempPassword, createAdminAccount } from '../services/auth.service';
@@ -158,7 +158,6 @@ const setRoleSchema = z.object({ role: z.enum(['STUDENT', 'ADMIN', 'SUPER_ADMIN'
 const setRole = asyncHandler(async (req, res) => {
   const body = req.validatedBody as { role: string };
   if (req.user?.role !== ROLE.SUPER_ADMIN && req.user?.role !== ROLE.ADMIN) {
-    const { ForbiddenError } = await import('../utils/errors');
     throw new ForbiddenError('Only an administrator can change roles');
   }
   const user = await User.findById(req.params.id);
@@ -186,7 +185,6 @@ const createStaffSchema = z.object({
 });
 const createStaff = asyncHandler(async (req, res) => {
   if (req.user?.role !== ROLE.SUPER_ADMIN && req.user?.role !== ROLE.ADMIN) {
-    const { ForbiddenError } = await import('../utils/errors');
     throw new ForbiddenError('Only an administrator can create admin accounts');
   }
   const body = req.validatedBody as { name: string; email: string; studentId: string; role?: 'ADMIN' | 'SUPER_ADMIN' };
@@ -221,7 +219,6 @@ const deleteUser = asyncHandler(async (req, res) => {
     throw new ConflictError('You cannot delete your own account');
   }
   if (user.role === ROLE.SUPER_ADMIN && req.user?.role !== ROLE.SUPER_ADMIN) {
-    const { ForbiddenError } = await import('../utils/errors');
     throw new ForbiddenError('Only a Super Admin can delete another Super Admin');
   }
 

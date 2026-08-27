@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middlewares/auth';
 import { loadUser } from '../middlewares/loadUser';
-import { Order, Product, Category } from '../models';
+import { Order, Product, Category, Payment, InventoryTransaction } from '../models';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/response';
 import { ROLE, PAYMENT_STATUS, ORDER_STATUS } from '../constants';
@@ -127,7 +127,6 @@ router.get('/stock-consumption', asyncHandler(async (req, res) => {
   const days = Number(req.query.days) || 7;
   const from = new Date();
   from.setDate(from.getDate() - days);
-  const { InventoryTransaction } = await import('../models');
   const rows = await InventoryTransaction.aggregate([
     { $match: { createdAt: { $gte: from }, type: 'SOLD' } },
     { $group: { _id: '$productId', quantity: { $sum: '$quantity' } } },
@@ -150,7 +149,6 @@ router.get('/peak-hours', asyncHandler(async (_req, res) => {
 }));
 
 router.get('/payments', asyncHandler(async (req, res) => {
-  const { Payment } = await import('../models');
   const { page = 1, limit = 50, view, status } = req.query as {
     page?: string;
     limit?: string;

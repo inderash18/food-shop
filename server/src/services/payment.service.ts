@@ -1,10 +1,10 @@
 import { Types, HydratedDocument } from 'mongoose';
-import { Payment, Order, IPayment, IOrder } from '../models';
+import { Payment, Order, IPayment, IOrder, PaymentTransaction, PaymentWebhookEvent } from '../models';
 import { PAYMENT_STATUS, PaymentStatus } from '../constants';
 import { AppError, NotFoundError, PaymentError, ConflictError, PaymentProviderNotConfiguredError } from '../utils/errors';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
-
+import { recordAudit } from './audit.service';
 import { isAmountEqual, toPaise, toRupees } from '../utils/money';
 
 export interface CreatePaymentInput {
@@ -163,7 +163,6 @@ class PaymentGatewayService {
     if (result.status === PAYMENT_STATUS.SUCCESS) {
       // 1. Verify transaction ID uniqueness
       if (result.transactionId) {
-        const { PaymentTransaction } = await import('../models');
         const existingTx = await PaymentTransaction.findOne({ provider: provider.name, transactionId: result.transactionId });
         if (existingTx && String(existingTx.paymentId) !== String(payment._id)) {
           payment.status = PAYMENT_STATUS.FAILED;
@@ -215,7 +214,6 @@ class PaymentGatewayService {
         payment.failureReason = 'MERCHANT_MISMATCH';
         await payment.save();
         
-        const { recordAudit } = await import('./audit.service');
         await recordAudit({
           actorId: studentId,
           action: 'PAYMENT_FAILED',
@@ -230,7 +228,6 @@ class PaymentGatewayService {
 
       // Save Transaction Record
       if (result.transactionId) {
-        const { PaymentTransaction } = await import('../models');
         const existingTx = await PaymentTransaction.findOne({ provider: provider.name, transactionId: result.transactionId });
         if (!existingTx) {
           await PaymentTransaction.create({
@@ -304,8 +301,6 @@ class PaymentGatewayService {
     const provider = this.getProvider(providerName);
     const payload = await provider.parseWebhook(rawBody, headers);
 
-    const { PaymentWebhookEvent } = await import('../models');
-    
     // Idempotency Check
     const existingEvent = await PaymentWebhookEvent.findOne({ provider: providerName, eventId: payload.event });
     if (existingEvent) {

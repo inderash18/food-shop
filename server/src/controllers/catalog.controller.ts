@@ -19,6 +19,8 @@ import { changeStock, listInventory, getInventoryTransactions, updateMinimumStoc
 import { recordAudit } from '../services/audit.service';
 import { AUDIT_ACTION } from '../constants';
 import { AppError } from '../utils/errors';
+import { Product, Order } from '../models';
+import { cache } from '../services/cache.service';
 
 export const getCategories = asyncHandler(async (_req: Request, res: Response) => {
   const categories = await listCategories();
@@ -79,7 +81,6 @@ export const getAdminProducts = asyncHandler(async (req: Request, res: Response)
   }
   const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 25));
-  const { Product } = await import('../models');
   const [products, total] = await Promise.all([
     Product.find(filter)
       .sort({ createdAt: -1 })
@@ -173,7 +174,6 @@ export const patchUpdateProduct = asyncHandler(async (req: Request, res: Respons
 });
 
 export const deleteProduct = asyncHandler(async (req: Request, res: Response) => {
-  const { Order, Product } = await import('../models');
   // Check if product is referenced by historical orders
   const hasOrders = await Order.exists({ 'items.productId': req.params.id });
   if (hasOrders) {
@@ -182,7 +182,6 @@ export const deleteProduct = asyncHandler(async (req: Request, res: Response) =>
   } else {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) throw new AppError(404, 'NOT_FOUND', 'Product not found');
-    const { cache } = await import('../services/cache.service');
     cache.delByPrefix('products');
     await recordAudit({
       actorId: req.userId,
