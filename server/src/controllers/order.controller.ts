@@ -110,7 +110,11 @@ export const getAdminOrders = asyncHandler(async (req: Request, res: Response) =
   const filter: Record<string, any> = {};
   if (q.view === 'confirmed') {
     filter.paymentStatus = PAYMENT_STATUS.SUCCESS;
-    filter.status = { $in: [ORDER_STATUS.ORDER_CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.READY, ORDER_STATUS.COMPLETED] };
+    filter.status = { $in: [ORDER_STATUS.ORDER_CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.READY] };
+  } else if (!q.status && !q.paymentStatus) {
+    // Default operational view: show only confirmed/paid orders (exclude CART, PAYMENT_PENDING, PAYMENT_FAILED)
+    filter.paymentStatus = PAYMENT_STATUS.SUCCESS;
+    filter.status = { $in: [ORDER_STATUS.ORDER_CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.READY, ORDER_STATUS.COMPLETED, ORDER_STATUS.CANCELLED] };
   }
   if (q.status) {
     const statuses = q.status.split(',');

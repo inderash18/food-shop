@@ -141,16 +141,20 @@ export const adminApi = {
   kitchenBoard: () => apiGet<{ board: KitchenBoard }>('/api/orders/admin/kitchen').then((d) => d.board),
   updateOrderStatus: (orderId: string, status: string) => apiPatch<{ order: Order }>(`/api/orders/admin/${orderId}/status`, { status }).then((d) => d.order),
 
-  products: (params: { page?: number; limit?: number; search?: string }) => {
+  products: (params: { page?: number; limit?: number; search?: string; status?: string; category?: string }) => {
     const q = new URLSearchParams();
     if (params.page) q.set('page', String(params.page));
     if (params.limit) q.set('limit', String(params.limit));
     if (params.search) q.set('search', params.search);
+    if (params.status) q.set('status', params.status);
+    if (params.category) q.set('category', params.category);
     return apiGet<Paginated<Product> & { products: Product[] }>(`/api/admin/products?${q.toString()}`);
   },
   createProduct: (body: Record<string, unknown>) => apiPost<{ product: Product }>('/api/admin/products', body).then((d) => d.product),
   updateProduct: (id: string, body: Record<string, unknown>) => apiPatch<{ product: Product }>(`/api/admin/products/${id}`, body).then((d) => d.product),
-  deleteProduct: (id: string) => apiDelete<{ product: Product }>(`/api/admin/products/${id}`).then((d) => d.product),
+  setProductAvailability: (id: string, isActive: boolean) =>
+    apiPatch<{ product: Product; message: string }>(`/api/admin/products/${id}/availability`, { isActive }).then((d) => d.product),
+  deleteProduct: (id: string) => apiDelete<{ product: Product; message: string }>(`/api/admin/products/${id}`).then((d) => d.product),
 
   categories: () => apiGet<{ categories: Category[] }>('/api/categories').then((d) => d.categories),
   createCategory: (body: Record<string, unknown>) => apiPost<{ category: Category }>('/api/admin/categories', body).then((d) => d.category),
@@ -201,10 +205,12 @@ export const adminApi = {
   resetPassword: (id: string, newPassword: string) => apiPost<{ message: string }>(`/api/admin/users/${id}/reset-password`, { newPassword }),
   deleteUser: (id: string) => apiDelete<{ message: string }>(`/api/admin/users/${id}`),
 
-  payments: (params: { page?: number; limit?: number }) => {
+  payments: (params: { page?: number; limit?: number; view?: string; status?: string }) => {
     const q = new URLSearchParams();
     if (params.page) q.set('page', String(params.page));
     if (params.limit) q.set('limit', String(params.limit));
+    if (params.view) q.set('view', params.view);
+    if (params.status) q.set('status', params.status);
     return apiGet<Paginated<PaymentRecord> & { payments: PaymentRecord[] }>(`/api/admin/analytics/payments?${q.toString()}`);
   },
 

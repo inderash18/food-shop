@@ -18,8 +18,8 @@ const startOfToday = () => {
 router.get('/dashboard', asyncHandler(async (_req, res) => {
   const today = startOfToday();
   const [totalOrders, todaysOrders, todaysRevenue, lowStock, outOfStock, pendingOrders, preparing, ready] = await Promise.all([
-    Order.countDocuments({}),
-    Order.countDocuments({ createdAt: { $gte: today } }),
+    Order.countDocuments({ paymentStatus: PAYMENT_STATUS.SUCCESS, status: { $ne: ORDER_STATUS.CART } }),
+    Order.countDocuments({ paymentStatus: PAYMENT_STATUS.SUCCESS, createdAt: { $gte: today } }),
     Order.aggregate([
       { $match: { paymentStatus: PAYMENT_STATUS.SUCCESS, createdAt: { $gte: today } } },
       { $group: { _id: null, total: { $sum: '$total' } } },
@@ -151,19 +151,43 @@ router.get('/peak-hours', asyncHandler(async (_req, res) => {
 
 router.get('/payments', asyncHandler(async (req, res) => {
   const { Payment } = await import('../models');
-  const { page = 1, limit = 50 } = req.query as { page?: string; limit?: string };
+  const { page = 1, limit = 50, view, status } = req.query as {
+    page?: string;
+    limit?: string;
+    view?: string;
+    status?: string;
+  };
   const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 25));
+
+  const filter: Record<string, any> = {};
+
+  if (view === 'mismatch') {
+    filter.$or = [
+      { failureReason: 'AMOUNT_MISMATCH' },
+      { verificationStatus: 'REJECTED' },
+    ];
+  } else if (view === 'all') {
+    if (status && status !== 'ALL') {
+      filter.status = status;
+    }
+  } else {
+    // CRITICAL REQUIREMENT: Show ONLY payments that have been successfully completed and verified
+    filter.status = PAYMENT_STATUS.SUCCESS;
+    filter.verificationStatus = 'VERIFIED';
+  }
+
   const [payments, total] = await Promise.all([
-    Payment.find({})
+    Payment.find(filter)
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
-      .populate('orderId', 'orderNumber total')
-      .populate('userId', 'name email')
+      .populate('orderId', 'orderNumber total status paymentStatus expectedAmount createdAt')
+      .populate('userId', 'name email studentId')
       .lean(),
-    Payment.countDocuments({}),
+    Payment.countDocuments(filter),
   ]);
+
   sendSuccess(res, {
     payments: payments || [],
     total,

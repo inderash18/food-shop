@@ -31,20 +31,20 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
       outOfStockProducts,
     ] = await Promise.all([
       User.countDocuments({ role: ROLE.STUDENT }),
-      Order.countDocuments(),
-      Order.countDocuments({ createdAt: { $gte: todayStart, $lte: todayEnd } }),
+      Order.countDocuments({ paymentStatus: PAYMENT_STATUS.SUCCESS, status: { $in: [ORDER_STATUS.ORDER_CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.READY, ORDER_STATUS.COMPLETED] } }),
+      Order.countDocuments({ paymentStatus: PAYMENT_STATUS.SUCCESS, status: { $in: [ORDER_STATUS.ORDER_CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.READY, ORDER_STATUS.COMPLETED] }, createdAt: { $gte: todayStart, $lte: todayEnd } }),
       Order.aggregate([
-        { $match: { status: ORDER_STATUS.COMPLETED } },
+        { $match: { paymentStatus: PAYMENT_STATUS.SUCCESS, status: { $in: [ORDER_STATUS.ORDER_CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.READY, ORDER_STATUS.COMPLETED] } } },
         { $group: { _id: null, total: { $sum: '$total' } } }
       ]),
       Order.aggregate([
-        { $match: { status: ORDER_STATUS.COMPLETED, createdAt: { $gte: todayStart, $lte: todayEnd } } },
+        { $match: { paymentStatus: PAYMENT_STATUS.SUCCESS, status: { $in: [ORDER_STATUS.ORDER_CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.READY, ORDER_STATUS.COMPLETED] }, createdAt: { $gte: todayStart, $lte: todayEnd } } },
         { $group: { _id: null, total: { $sum: '$total' } } }
       ]),
-      Order.countDocuments({ status: { $in: [ORDER_STATUS.PAYMENT_PENDING, ORDER_STATUS.PAYMENT_PROCESSING, ORDER_STATUS.ORDER_CONFIRMED] } }),
+      Order.countDocuments({ status: ORDER_STATUS.ORDER_CONFIRMED, paymentStatus: PAYMENT_STATUS.SUCCESS }),
       Order.countDocuments({ status: ORDER_STATUS.PREPARING }),
       Order.countDocuments({ status: ORDER_STATUS.READY }),
-      Order.countDocuments({ status: ORDER_STATUS.COMPLETED }),
+      Order.countDocuments({ status: ORDER_STATUS.COMPLETED, paymentStatus: PAYMENT_STATUS.SUCCESS }),
       Order.countDocuments({ status: ORDER_STATUS.CANCELLED }),
       Order.countDocuments({ $or: [{ status: ORDER_STATUS.PAYMENT_FAILED }, { paymentStatus: PAYMENT_STATUS.FAILED }] }),
       Product.countDocuments({ stock: { $lte: 0 } })
@@ -91,7 +91,8 @@ export const getRevenueChart = async (req: Request, res: Response, next: NextFun
       revenueData = await Order.aggregate([
         {
           $match: {
-            status: ORDER_STATUS.COMPLETED,
+            paymentStatus: PAYMENT_STATUS.SUCCESS,
+            status: { $in: [ORDER_STATUS.ORDER_CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.READY, ORDER_STATUS.COMPLETED] },
             createdAt: { $gte: startDate }
           }
         },
@@ -133,7 +134,7 @@ export const getRecentTransactions = async (req: Request, res: Response, next: N
   try {
     let transactions: any[] = [];
     try {
-      transactions = await PaymentTransaction.find()
+      transactions = await PaymentTransaction.find({ status: PAYMENT_STATUS.SUCCESS })
         .populate({ path: 'orderId', select: 'orderNumber userId total items', populate: { path: 'userId', select: 'name email' } })
         .sort({ createdAt: -1 })
         .limit(50)
@@ -144,7 +145,7 @@ export const getRecentTransactions = async (req: Request, res: Response, next: N
 
     if (!transactions || transactions.length === 0) {
       try {
-        const payments = await Payment.find()
+        const payments = await Payment.find({ status: PAYMENT_STATUS.SUCCESS, verificationStatus: 'VERIFIED' })
           .populate({ path: 'orderId', select: 'orderNumber userId total items', populate: { path: 'userId', select: 'name email' } })
           .sort({ createdAt: -1 })
           .limit(50)

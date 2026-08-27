@@ -125,6 +125,7 @@ describe('Zero Error Hardening — Admin Dashboard & Pagination Suite', () => {
       sort: vi.fn().mockReturnThis(),
       skip: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
+      populate: vi.fn().mockReturnThis(),
       lean: vi.fn().mockResolvedValue([]),
     } as any);
     vi.spyOn(Product, 'countDocuments').mockResolvedValue(5);

@@ -58,10 +58,24 @@ export const getProductDetail = asyncHandler(async (req: Request, res: Response)
 });
 
 export const getAdminProducts = asyncHandler(async (req: Request, res: Response) => {
-  const { page = 1, limit = 50, search } = req.query as { page?: string; limit?: string; search?: string };
+  const { page = 1, limit = 50, search, category, status } = req.query as {
+    page?: string;
+    limit?: string;
+    search?: string;
+    category?: string;
+    status?: string;
+  };
   const filter: Record<string, unknown> = {};
   if (search && typeof search === 'string' && search.trim()) {
     filter.name = { $regex: search.trim(), $options: 'i' };
+  }
+  if (category && category !== 'ALL') {
+    filter.categoryId = category;
+  }
+  if (status === 'AVAILABLE') {
+    filter.isActive = true;
+  } else if (status === 'UNAVAILABLE') {
+    filter.isActive = false;
   }
   const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 25));
@@ -71,6 +85,7 @@ export const getAdminProducts = asyncHandler(async (req: Request, res: Response)
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
+      .populate('categoryId', 'name slug')
       .lean(),
     Product.countDocuments(filter),
   ]);
@@ -158,8 +173,27 @@ export const patchUpdateProduct = asyncHandler(async (req: Request, res: Respons
 });
 
 export const deleteProduct = asyncHandler(async (req: Request, res: Response) => {
-  const product = await softDeleteProduct(req.params.id, req.userId!, req.user?.email);
-  sendSuccess(res, { product, message: 'Product deactivated' });
+  const { Order, Product } = await import('../models');
+  // Check if product is referenced by historical orders
+  const hasOrders = await Order.exists({ 'items.productId': req.params.id });
+  if (hasOrders) {
+    const product = await softDeleteProduct(req.params.id, req.userId!, req.user?.email);
+    sendSuccess(res, { product, message: 'Product deactivated (preserved for historical orders)' });
+  } else {
+    const product = await Product.findByIdAndDelete(req.params.id);
+    if (!product) throw new AppError(404, 'NOT_FOUND', 'Product not found');
+    const { cache } = await import('../services/cache.service');
+    cache.delByPrefix('products');
+    await recordAudit({
+      actorId: req.userId,
+      actorEmail: req.user?.email,
+      action: AUDIT_ACTION.PRODUCT_DEACTIVATED,
+      resource: 'product',
+      resourceId: req.params.id,
+      metadata: { name: product.name, deleted: true },
+    });
+    sendSuccess(res, { product, message: 'Product deleted permanently' });
+  }
 });
 
 export const patchProductAvailability = asyncHandler(async (req: Request, res: Response) => {

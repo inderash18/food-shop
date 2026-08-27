@@ -50,5 +50,8 @@ const paymentSchema = new Schema<IPayment>(
 );
 
 paymentSchema.index({ providerPaymentId: 1, status: 1 });
+paymentSchema.index({ status: 1, verificationStatus: 1, createdAt: -1 });
+paymentSchema.index({ orderId: 1, status: 1 });
+paymentSchema.index({ userId: 1, createdAt: -1 });
 
 export const Payment = (models.Payment ?? model<IPayment>('Payment', paymentSchema)) as Model<IPayment>;

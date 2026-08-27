@@ -18,11 +18,11 @@ const timeSchema = z
   .or(z.literal(''));
 
 export const productCreateSchema = z.object({
-  name: z.string().trim().min(2).max(100),
+  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
   description: z.string().trim().max(1000).optional().or(z.literal('')),
-  categoryId: z.string().min(1),
-  imageUrl: z.string().trim().url().optional().or(z.literal('')),
-  price: z.coerce.number().min(0).max(100000).positive('Price must be greater than 0'),
+  categoryId: z.string().min(1, 'Category is required'),
+  imageUrl: z.string().trim().optional().or(z.literal('')),
+  price: z.coerce.number().min(0, 'Price must be greater than or equal to 0').max(100000),
   stock: z.coerce.number().int().min(0).max(100000).optional(),
   minimumStock: z.coerce.number().int().min(0).max(100000).optional(),
   prepMinutes: z.coerce.number().int().min(1).max(120).optional(),
